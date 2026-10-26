@@ -38,14 +38,20 @@ signals: {
 
 ```js
 released_at: {
-  youtube: "ISO",       // 示範：影片 uploadDate
-  apple_music: "ISO", // 示範：專輯／目錄發行日
-  spotify: "ISO",
-  kkbox: "ISO"
+  youtube: "ISO",       // YouTube 公開頁 uploadDate（已核實）
+  apple_music: "ISO", // iTunes Lookup releaseDate
+  spotify: "ISO",     // 無公開 API 時對齊同曲目 Apple／專輯發行日
+  kkbox: "ISO"        // 頁面難抓時對齊同曲目 Apple／專輯發行日
 }
 ```
 
-示範日期來源：YouTube 用公開頁面 `uploadDate`；串流平台用專輯／目錄發行日（SOP／KKBOX／Apple 等公開資料）。部分為 demo 估算，唔保證同各店上架日完全一致。`created_at` 仍係本站收錄日（Admin／目錄用）。
+### 示範日期來源（v5）
+
+- **YouTube**：每條 `watch?v=` 頁面 schema.org `uploadDate`，與 seed 一對一核實。**新歌榜反映嘅係所連官方影片嘅上傳日**，唔係本站收錄日。  
+- **Apple Music**：`itunes.apple.com/lookup` 嘅 `releaseDate`。  
+- **Spotify／KKBOX**：公開頁唔穩定回傳發行日；有連結嘅舊曲對齊同曲目 Apple 發行日（見上）。未能核實嘅新曲暫唔放該平台連結。  
+- `created_at` 仍係本站收錄日（Admin／目錄用）。  
+- Seed 只收**機構官方頻道／官方上架**（例如讚美之泉、基恩敬拜、約書亞樂團、天韻）；唔收私人帳號上傳。
 
 URL 會記住選擇，例如 `#/?platform=spotify&chart=日榜` 或 `#/?platform=youtube&chart=新歌`。
 
@@ -80,7 +86,7 @@ vercel
 - 管理員密碼喺前端，僅 demo  
 - 示範平台連結係已核實嘅曲目／影片深層連結（唔係搜尋頁）；缺核實嘅平台會省略該 key  
 - 播放量係 seed 示範數字，唔係即時 API  
-- `released_at` 係示範／公開資料估算，唔係各平台即時 API  
+- `released_at` 已按公開頁／iTunes 核實（見上）；Spotify／KKBOX 部分為對齊 Apple 嘅最佳公開證據  
 
 ## 本機預覽
 
@@ -106,7 +112,7 @@ python3 -m http.server 8765
 
 - `index.html` — 入口  
 - `styles.css` — 深色音樂平台樣式（響應式、繁中）  
-- `data.js` — 12 首示範歌＋每平台播放量＋`released_at`  
+- `data.js` — 12 首示範歌＋每平台播放量＋`released_at`（含 2025–2026 官方新歌）  
 - `app.js` — SPA 邏輯（hash 路由、平台榜排序、封面／icon）  
 - `vercel.json` — Vercel 靜態部署設定  
 - `screenshots/` — UI 截圖參考  
@@ -115,5 +121,5 @@ python3 -m http.server 8765
 
 - Seed 出站連結應為官方／機構曲目頁（`watch?v=`、Apple／Spotify track、KKBOX song）。唔好再放搜尋頁。  
 - 每首歌可有 `coverUrl`（https 圖）；優先 YouTube `i.ytimg.com/vi/<id>/hqdefault.jpg`，否則用 Apple／Spotify 專輯圖。`coverColor` 仍作 fallback。  
-- Storage key 已升至 `hymn_directory_v4`（自動載入含 `released_at` 嘅新 seed）。若仍見「最新」或舊排序，Admin「重設為示範數據」或清該 key。  
+- Storage key 已升至 `hymn_directory_v5`（自動載入核實日期＋新歌 seed）。若仍見舊「新歌」頂部停喺 2024，Admin「重設為示範數據」或清該 key。  
 - 上架提交只設 `created_at`；未填 `released_at` 嘅歌唔會出現喺各平台「新歌」榜，直至補上。  

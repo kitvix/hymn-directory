@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v4";
+  const STORAGE_KEY = "hymn_directory_v5";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
 
