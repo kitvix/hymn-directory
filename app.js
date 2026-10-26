@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v5";
+  const STORAGE_KEY = "hymn_directory_v6";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
 
@@ -30,39 +30,118 @@
     return out;
   }
 
-  /** Normalize chart query: legacy 「最新」 → 「新歌」. */
+  /** Normalize chart query: legacy 「最新」 → 「新歌」; default 最熱. */
   function normalizeChart(chart) {
     if (chart === "最新") return "新歌";
-    return chart || "周榜";
+    return chart || "最熱";
   }
 
-  /** Platform release/upload ISO for 新歌 chart. */
-  function platformReleasedAt(song, platform) {
-    const ra = song.released_at && song.released_at[platform];
+  const CHART_PLATFORM = "youtube";
+  let liveStats = null; // { [videoId]: { viewCount, publishedAt, title, channelTitle } }
+  let liveStatsMeta = { status: "idle", source: "", message: "" };
+
+  function extractYtId(url) {
+    if (!url) return "";
+    const m = String(url).match(
+      /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/
+    );
+    return m ? m[1] : "";
+  }
+
+  /** YouTube upload / published ISO for 新歌. Prefer live API. */
+  function youtubePublishedAt(song) {
+    const id = extractYtId(song.links && song.links.youtube);
+    if (id && liveStats && liveStats[id] && liveStats[id].publishedAt) {
+      return String(liveStats[id].publishedAt);
+    }
+    const ra = song.released_at && song.released_at.youtube;
     return ra ? String(ra) : "";
   }
 
-  /** Read play count for platform + metric (total|day|week|month). */
-  function platformPlays(song, platform, metric) {
-    const sig = song.signals && song.signals[platform];
-    if (!sig || typeof sig !== "object") return 0;
-    return Number(sig[metric]) || 0;
+  /** YouTube view count: live API preferred, else seed signals.youtube.total */
+  function youtubeViews(song) {
+    const id = extractYtId(song.links && song.links.youtube);
+    if (id && liveStats && liveStats[id] && liveStats[id].viewCount != null) {
+      return Number(liveStats[id].viewCount) || 0;
+    }
+    const sig = song.signals && song.signals.youtube;
+    return sig ? Number(sig.total) || 0 : 0;
   }
 
-  /** Song qualifies for a platform chart: has link; 新歌 also needs released_at; play charts need positive signal. */
-  function onPlatformChart(song, platform, chart) {
-    if (!(song.links && song.links[platform])) return false;
-    if (chart === "新歌") return !!platformReleasedAt(song, platform);
-    const metric = chartMetric(chart);
-    return platformPlays(song, platform, metric) > 0;
+  /** Song on YouTube chart: needs youtube link; 新歌 also needs publishedAt; play charts need views > 0. */
+  function onYoutubeChart(song, chart) {
+    if (!(song.links && song.links.youtube)) return false;
+    if (chart === "新歌") return !!youtubePublishedAt(song);
+    return youtubeViews(song) > 0;
   }
 
-  function chartMetric(chart) {
-    if (chart === "日榜") return "day";
-    if (chart === "周榜") return "week";
-    if (chart === "月榜") return "month";
-    if (chart === "最熱") return "total";
-    return "total";
+  function isPeriodChart(chart) {
+    return chart === "日榜" || chart === "周榜" || chart === "月榜";
+  }
+
+  function applyLiveStatsToSongs(videos) {
+    if (!videos) return;
+    state.songs.forEach((song) => {
+      const id = extractYtId(song.links && song.links.youtube);
+      if (!id || !videos[id]) return;
+      const v = videos[id];
+      song.signals = song.signals || {};
+      song.signals.youtube = song.signals.youtube || { total: 0, day: 0, week: 0, month: 0 };
+      if (v.viewCount != null) song.signals.youtube.total = Number(v.viewCount) || 0;
+      song.released_at = song.released_at || {};
+      if (v.publishedAt) song.released_at.youtube = v.publishedAt;
+    });
+  }
+
+  async function loadLiveStats() {
+    const ids = [
+      ...new Set(
+        publishedSongs()
+          .map((s) => extractYtId(s.links && s.links.youtube))
+          .filter(Boolean)
+      )
+    ];
+    if (!ids.length) {
+      liveStatsMeta = { status: "fallback", source: "seed", message: "無 YouTube 連結" };
+      return;
+    }
+
+    async function tryFetch(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("http_" + r.status);
+      return r.json();
+    }
+
+    try {
+      let data = null;
+      let source = "";
+      try {
+        data = await tryFetch("/api/youtube-stats?ids=" + encodeURIComponent(ids.join(",")));
+        source = "api";
+      } catch (_) {
+        data = await tryFetch("live-stats.json");
+        source = "live-stats.json";
+      }
+      if (data && data.videos && typeof data.videos === "object") {
+        liveStats = data.videos;
+        applyLiveStatsToSongs(liveStats);
+        saveState(state);
+        liveStatsMeta = {
+          status: "ok",
+          source,
+          message: source === "api" ? "YouTube 即時觀看" : "本機 live-stats.json"
+        };
+        return;
+      }
+      throw new Error("empty");
+    } catch (_) {
+      liveStats = null;
+      liveStatsMeta = {
+        status: "fallback",
+        source: "seed",
+        message: "YouTube API 暫時唔用得，顯示示範／快取數字"
+      };
+    }
   }
 
   function formatPlays(n) {
@@ -203,7 +282,7 @@
           </div>
           <main class="main">${content}</main>
           <footer class="footer">
-            V1 原型 · 深色音樂平台 UI · 只連 YouTube／Apple Music／Spotify／KKBOX · 唔託管音檔 ·
+            V1 原型 · 榜單以 YouTube 為準 · Apple／Spotify／KKBOX 只作出站連結 · 唔託管音檔 ·
             <a href="#/admin">管理員</a>
           </footer>
         </div>
@@ -216,37 +295,30 @@
     `;
   }
 
-  function sortSongs(list, chart, platform) {
+  function sortSongs(list, chart) {
     const arr = list.slice();
     if (chart === "新歌") {
       return arr.sort(
-        (a, b) =>
-          new Date(platformReleasedAt(b, platform)) -
-          new Date(platformReleasedAt(a, platform))
+        (a, b) => new Date(youtubePublishedAt(b)) - new Date(youtubePublishedAt(a))
       );
     }
-    const metric = chartMetric(chart);
-    return arr.sort(
-      (a, b) => platformPlays(b, platform, metric) - platformPlays(a, platform, metric)
-    );
+    // 最熱 + 日／周／月（暫代）：總觀看
+    return arr.sort((a, b) => youtubeViews(b) - youtubeViews(a));
   }
 
-  function scoreLabel(song, chart, platform) {
+  function scoreLabel(song, chart) {
     if (chart === "新歌") {
-      const iso = platformReleasedAt(song, platform);
+      const iso = youtubePublishedAt(song);
       return iso ? new Date(iso).toLocaleDateString("zh-HK") : "";
     }
-    const metric = chartMetric(chart);
-    const n = platformPlays(song, platform, metric);
-    if (chart === "日榜") return "今日 " + formatPlays(n);
-    if (chart === "周榜") return "本周 " + formatPlays(n);
-    if (chart === "月榜") return "本月 " + formatPlays(n);
-    return "播放 " + formatPlays(n);
+    const n = youtubeViews(song);
+    if (isPeriodChart(chart)) return "暫代 · " + formatPlays(n);
+    return "觀看 " + formatPlays(n);
   }
 
-  function listenForPlatform(song, platform) {
-    if (song.links && song.links[platform]) {
-      return { url: song.links[platform], platform };
+  function preferListen(song) {
+    if (song.links && song.links.youtube) {
+      return { url: song.links.youtube, platform: "youtube" };
     }
     return firstListenUrl(song);
   }
@@ -255,15 +327,13 @@
     const hash = location.hash;
     const qIdx = hash.indexOf("?");
     const qs = qIdx >= 0 ? new URLSearchParams(hash.slice(qIdx + 1)) : new URLSearchParams();
-    const chart = normalizeChart(qs.get("chart") || "周榜");
-    const platformRaw = qs.get("platform") || "youtube";
-    const platform = PLATFORMS.includes(platformRaw) ? platformRaw : "youtube";
+    const chart = normalizeChart(qs.get("chart") || "最熱");
     const q = (qs.get("q") || "").trim();
     const lang = qs.get("lang") || "";
     const ministry = qs.get("ministry") || "";
-    const pMeta = window.PLATFORM_META[platform];
+    const ytMeta = window.PLATFORM_META.youtube;
 
-    let list = publishedSongs().filter((s) => onPlatformChart(s, platform, chart));
+    let list = publishedSongs().filter((s) => onYoutubeChart(s, chart));
     if (q) {
       const qq = q.toLowerCase();
       list = list.filter(
@@ -276,14 +346,9 @@
     if (lang) list = list.filter((s) => (s.languages || []).includes(lang));
     if (ministry) list = list.filter((s) => s.artist === ministry);
 
-    list = sortSongs(list, chart, platform);
+    list = sortSongs(list, chart);
     const ministries = [...new Set(publishedSongs().map((s) => s.artist))].sort();
     const featured = list[0] || null;
-
-    const platformTabs = PLATFORMS.map((p) => {
-      const m = window.PLATFORM_META[p];
-      return `<button class="tab ${p === platform ? "active" : ""}" data-platform="${p}">${esc(m.label)}</button>`;
-    }).join("");
 
     const tabs = ["日榜", "周榜", "月榜", "新歌", "最熱"]
       .map(
@@ -292,14 +357,25 @@
       )
       .join("");
 
+    const periodNote = isPeriodChart(chart)
+      ? `<div class="alert alert-info" style="margin-bottom:14px">日／周／月榜需要歷史觀看快照先計增量；<strong>暫以總觀看排序</strong>（同最熱）。最熱／新歌已用 YouTube 真實數據。</div>`
+      : "";
+
+    const liveNote =
+      liveStatsMeta.status === "ok"
+        ? `<span class="muted" style="font-size:13px">${list.length} 首 · ${esc(liveStatsMeta.message || "YouTube")}</span>`
+        : liveStatsMeta.status === "fallback"
+          ? `<span class="muted" style="font-size:13px">${list.length} 首 · ${esc(liveStatsMeta.message)}</span>`
+          : `<span class="muted" style="font-size:13px">${list.length} 首</span>`;
+
     const featureHtml = featured
       ? (() => {
-          const listen = listenForPlatform(featured, platform);
+          const listen = preferListen(featured);
           return `
           <section class="hero-feature">
             <a href="#/song/${esc(featured.id)}" style="display:block">${coverHtml(featured, "cover-lg hero-cover")}</a>
             <div>
-              <p class="hero-kicker">${esc(pMeta.label)} · ${esc(chart)}</p>
+              <p class="hero-kicker">${esc(ytMeta.label)} · ${esc(chart)}</p>
               <div class="hero-meta-row">
                 ${langChips(featured.languages)}
                 <span class="chip">${esc(featured.artist)}</span>
@@ -323,7 +399,7 @@
       ? list
           .map((s, i) => {
             const rankClass = i < 3 ? "top" : "";
-            const listen = listenForPlatform(s, platform);
+            const listen = preferListen(s);
             return `
             <article class="chart-row" data-id="${esc(s.id)}" role="link" tabindex="0">
               <div class="rank-num ${rankClass}">${i + 1}</div>
@@ -334,7 +410,7 @@
               </div>
               <div class="platform-icons">${platformDots(s)}</div>
               <div class="row-actions">
-                <span class="score mono">${esc(scoreLabel(s, chart, platform))}</span>
+                <span class="score mono">${esc(scoreLabel(s, chart))}</span>
                 ${
                   listen
                     ? `<a class="play-out" href="${esc(listen.url)}" target="_blank" rel="noopener noreferrer" title="出站收聽" data-row-out="${esc(s.id)}" onclick="event.stopPropagation()">${iconSvg("play")}</a>`
@@ -344,19 +420,20 @@
             </article>`;
           })
           .join("")
-      : `<div class="empty">呢個平台暫時冇符合條件嘅詩歌。試下換平台、榜單或清篩選。</div>`;
+      : `<div class="empty">暫時冇符合條件嘅 YouTube 詩歌。試下換榜單或清篩選。</div>`;
 
     return shell(
       `
       ${featureHtml}
 
       <div class="section-head">
-        <h2>${esc(pMeta.label)} · ${esc(chart)}</h2>
-        <span class="muted" style="font-size:13px">${list.length} 首 · 純播放量</span>
+        <h2>YouTube · ${esc(chart)}</h2>
+        ${liveNote}
       </div>
 
+      ${periodNote}
+
       <div class="toolbar">
-        <div class="tabs platform-tabs" id="platform-tabs" aria-label="平台榜">${platformTabs}</div>
         <div class="tabs" id="chart-tabs" aria-label="榜單時段">${tabs}</div>
         <div class="toolbar-row">
           <div class="search-box">
@@ -448,18 +525,26 @@
       </section>
 
       <section class="panel">
-        <h2>各平台播放量（示範）</h2>
+        <h2>YouTube 觀看</h2>
         <div class="props platform-play-props">
-          ${PLATFORMS.map((p) => {
-            const m = window.PLATFORM_META[p];
-            const has = song.links && song.links[p];
-            const sig = (song.signals && song.signals[p]) || {};
-            if (!has) {
-              return `<div class="prop"><span class="k">${esc(m.label)}</span><span class="v muted">未連結</span></div>`;
+          ${(() => {
+            const hasYt = song.links && song.links.youtube;
+            if (!hasYt) {
+              return `<div class="prop"><span class="k">YouTube</span><span class="v muted">未連結</span></div>`;
             }
-            return `<div class="prop prop-stack"><span class="k">${esc(m.label)}</span><span class="v mono">總 ${esc(formatPlays(sig.total || 0))} · 日 ${esc(formatPlays(sig.day || 0))} · 周 ${esc(formatPlays(sig.week || 0))} · 月 ${esc(formatPlays(sig.month || 0))}</span></div>`;
-          }).join("")}
+            const views = youtubeViews(song);
+            const pub = youtubePublishedAt(song);
+            const src =
+              liveStatsMeta.status === "ok"
+                ? liveStatsMeta.message
+                : liveStatsMeta.status === "fallback"
+                  ? "示範／快取"
+                  : "";
+            return `<div class="prop prop-stack"><span class="k">觀看次數</span><span class="v mono">${esc(formatPlays(views))}${src ? ` · ${esc(src)}` : ""}</span></div>
+            <div class="prop"><span class="k">上傳日</span><span class="v mono">${esc(pub ? new Date(pub).toLocaleDateString("zh-HK") : "—")}</span></div>`;
+          })()}
         </div>
+        <p class="muted" style="font-size:13px;margin-top:10px">Apple Music／Spotify／KKBOX 只作出站聽歌連結，唔計入榜單。</p>
       </section>
 
       ${
@@ -645,11 +730,8 @@
   }
 
   function bindHome() {
-    document.querySelectorAll("#platform-tabs .tab").forEach((btn) => {
-      btn.addEventListener("click", () => setHomeQuery({ platform: btn.dataset.platform }));
-    });
     document.querySelectorAll("#chart-tabs .tab").forEach((btn) => {
-      btn.addEventListener("click", () => setHomeQuery({ chart: btn.dataset.chart }));
+      btn.addEventListener("click", () => setHomeQuery({ chart: btn.dataset.chart, platform: null }));
     });
     const search = document.getElementById("search-input");
     let t;
@@ -914,5 +996,10 @@
   }
 
   window.addEventListener("hashchange", render);
-  render();
+
+  (async function boot() {
+    render(); // first paint with seed
+    await loadLiveStats();
+    render(); // refresh with live views when available
+  })();
 })();

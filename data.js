@@ -18,13 +18,13 @@ window.HYMN_SEED = [
     blurb: "經典華語敬拜，柔和旋律述說神無條件的愛。",
     created_at: "2026-09-12T08:00:00+08:00",
     released_at: {
-      youtube: "2020-04-15T11:12:00-07:00",
+      youtube: "2020-04-15T18:12:00Z",
       apple_music: "2003-06-01T12:00:00Z",
       spotify: "2003-06-01T12:00:00Z",
       kkbox: "2003-06-01T12:00:00Z"
     },
     signals: {
-      youtube: { total: 12800000, day: 42000, week: 210000, month: 890000 },
+      youtube: { total: 99846, day: 42000, week: 210000, month: 890000 },
       apple_music: { total: 1850000, day: 6200, week: 41000, month: 168000 },
       spotify: { total: 2420000, day: 8800, week: 52000, month: 210000 },
       kkbox: { total: 980000, day: 4100, week: 28000, month: 112000 }
@@ -49,13 +49,13 @@ window.HYMN_SEED = [
     blurb: "聚會常用開場詩歌，節奏明亮、易唱。",
     created_at: "2026-08-20T10:00:00+08:00",
     released_at: {
-      youtube: "2020-09-19T22:00:01-07:00",
+      youtube: "2020-09-20T05:00:01Z",
       apple_music: "1996-06-01T12:00:00Z",
       spotify: "1996-06-01T12:00:00Z",
       kkbox: "1996-06-01T12:00:00Z"
     },
     signals: {
-      youtube: { total: 9600000, day: 31000, week: 180000, month: 720000 },
+      youtube: { total: 126592, day: 31000, week: 180000, month: 720000 },
       apple_music: { total: 1520000, day: 5100, week: 36000, month: 142000 },
       spotify: { total: 1980000, day: 7200, week: 44000, month: 175000 },
       kkbox: { total: 860000, day: 3600, week: 24000, month: 98000 }
@@ -79,12 +79,12 @@ window.HYMN_SEED = [
     blurb: "述說人生路上神的帶領與恩典，華語教會經典。",
     created_at: "2026-07-01T09:00:00+08:00",
     released_at: {
-      youtube: "2021-05-24T17:22:54-07:00",
+      youtube: "2021-05-25T00:22:54Z",
       apple_music: "2000-01-01T12:00:00Z",
       kkbox: "2000-01-01T12:00:00Z"
     },
     signals: {
-      youtube: { total: 15200000, day: 51000, week: 265000, month: 1100000 },
+      youtube: { total: 1978520, day: 51000, week: 265000, month: 1100000 },
       apple_music: { total: 2680000, day: 9400, week: 61000, month: 248000 },
       kkbox: { total: 1420000, day: 5800, week: 39000, month: 156000 }
     }
@@ -106,11 +106,11 @@ window.HYMN_SEED = [
     blurb: "香港基恩敬拜粵語代表作，溫柔述說神一路同行。",
     created_at: "2026-10-02T14:00:00+08:00",
     released_at: {
-      youtube: "2019-03-25T05:00:00-07:00",
+      youtube: "2019-03-25T12:00:00Z",
       apple_music: "2012-12-01T12:00:00Z"
     },
     signals: {
-      youtube: { total: 3600000, day: 18000, week: 92000, month: 310000 },
+      youtube: { total: 3722445, day: 18000, week: 92000, month: 310000 },
       apple_music: { total: 420000, day: 2800, week: 18000, month: 72000 }
     }
   },
@@ -131,11 +131,11 @@ window.HYMN_SEED = [
     blurb: "溫柔粵語敬拜，述說神在低谷仍與我同行。",
     created_at: "2026-10-18T11:00:00+08:00",
     released_at: {
-      youtube: "2021-02-05T02:00:05-08:00",
+      youtube: "2021-02-05T10:00:05Z",
       apple_music: "2018-06-01T12:00:00Z"
     },
     signals: {
-      youtube: { total: 1200000, day: 12000, week: 64000, month: 180000 },
+      youtube: { total: 1260174, day: 12000, week: 64000, month: 180000 },
       apple_music: { total: 210000, day: 1600, week: 9800, month: 38000 }
     }
   },
@@ -156,11 +156,11 @@ window.HYMN_SEED = [
     blurb: "Gateway Worship × 約書亞樂團官方中文歌詞 MV：宣告幫助從主而來。",
     created_at: "2026-10-20T16:00:00+08:00",
     released_at: {
-      youtube: "2025-08-05T04:30:32-07:00",
+      youtube: "2025-08-05T11:30:32Z",
       apple_music: "2026-04-10T12:00:00Z"
     },
     signals: {
-      youtube: { total: 6400, day: 280, week: 1600, month: 4800 },
+      youtube: { total: 7941, day: 280, week: 1600, month: 4800 },
       apple_music: { total: 18000, day: 900, week: 5200, month: 14000 }
     }
   },
@@ -182,12 +182,12 @@ window.HYMN_SEED = [
     blurb: "宣告神作隨時的幫助與力量，聚會常用。",
     created_at: "2026-10-21T09:30:00+08:00",
     released_at: {
-      youtube: "2018-01-23T12:00:02-08:00",
+      youtube: "2018-01-23T20:00:02Z",
       apple_music: "2006-06-01T12:00:00Z",
       kkbox: "2006-06-01T12:00:00Z"
     },
     signals: {
-      youtube: { total: 5400000, day: 19000, week: 98000, month: 350000 },
+      youtube: { total: 5490520, day: 19000, week: 98000, month: 350000 },
       apple_music: { total: 980000, day: 3200, week: 21000, month: 84000 },
       kkbox: { total: 720000, day: 2900, week: 19000, month: 76000 }
     }
@@ -209,11 +209,11 @@ window.HYMN_SEED = [
     blurb: "讚美之泉《深愛耶穌》專輯（PW30）官方歌詞版 MV。",
     created_at: "2026-10-22T12:00:00+08:00",
     released_at: {
-      youtube: "2025-06-22T06:00:09-07:00",
+      youtube: "2025-06-22T13:00:09Z",
       apple_music: "2025-06-06T12:00:00Z"
     },
     signals: {
-      youtube: { total: 185000, day: 4200, week: 28000, month: 92000 },
+      youtube: { total: 45654, day: 4200, week: 28000, month: 92000 },
       apple_music: { total: 64000, day: 2100, week: 14000, month: 48000 }
     }
   },
@@ -235,12 +235,12 @@ window.HYMN_SEED = [
     blurb: "天韻經典：神的道路高過人的路，耐心等候必要歡呼。",
     created_at: "2026-05-10T08:00:00+08:00",
     released_at: {
-      youtube: "2015-03-30T19:22:40-07:00",
+      youtube: "2015-03-31T02:22:40Z",
       apple_music: "2020-03-01T12:00:00Z",
       kkbox: "2020-03-01T12:00:00Z"
     },
     signals: {
-      youtube: { total: 8900000, day: 24000, week: 160000, month: 720000 },
+      youtube: { total: 1576705, day: 24000, week: 160000, month: 720000 },
       apple_music: { total: 1100000, day: 3800, week: 26000, month: 98000 },
       kkbox: { total: 980000, day: 3600, week: 24000, month: 92000 }
     }
@@ -262,11 +262,11 @@ window.HYMN_SEED = [
     blurb: "讚美之泉敬拜讚美（31）《這是我們的敬拜》官方歌詞版 MV。",
     created_at: "2026-10-24T18:00:00+08:00",
     released_at: {
-      youtube: "2026-06-04T09:00:39-07:00",
+      youtube: "2026-06-04T16:00:39Z",
       apple_music: "2026-06-05T12:00:00Z"
     },
     signals: {
-      youtube: { total: 92000, day: 5600, week: 31000, month: 78000 },
+      youtube: { total: 25794, day: 5600, week: 31000, month: 78000 },
       apple_music: { total: 41000, day: 2800, week: 16000, month: 35000 }
     }
   },
@@ -287,11 +287,11 @@ window.HYMN_SEED = [
     blurb: "讚美之泉敬拜讚美（31）官方歌詞版 MV：風浪中定睛耶穌。",
     created_at: "2026-10-25T10:00:00+08:00",
     released_at: {
-      youtube: "2026-06-05T00:21:35-07:00",
+      youtube: "2026-06-05T07:21:35Z",
       apple_music: "2026-06-05T12:00:00Z"
     },
     signals: {
-      youtube: { total: 78000, day: 5100, week: 29000, month: 71000 },
+      youtube: { total: 50807, day: 5100, week: 29000, month: 71000 },
       apple_music: { total: 38000, day: 2600, week: 15000, month: 32000 }
     }
   },
@@ -312,11 +312,11 @@ window.HYMN_SEED = [
     blurb: "基恩敬拜粵語詩歌，述說十架恩典原是為我。",
     created_at: "2026-10-08T15:00:00+08:00",
     released_at: {
-      youtube: "2024-09-20T03:03:20-07:00",
+      youtube: "2024-09-20T10:03:20Z",
       apple_music: "2024-01-31T12:00:00Z"
     },
     signals: {
-      youtube: { total: 980000, day: 14000, week: 71000, month: 240000 },
+      youtube: { total: 293231, day: 14000, week: 71000, month: 240000 },
       apple_music: { total: 260000, day: 1900, week: 12000, month: 48000 }
     }
   }
