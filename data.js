@@ -16,8 +16,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "經典華語敬拜，柔和旋律述說神無條件的愛。",
     created_at: "2026-09-12T08:00:00+08:00",
-    signals: { youtube: 12800000, apple_music: 78, spotify: 62, kkbox: 71 },
-    deltas: { day: 42000, week: 210000, month: 890000 }
+    signals: {
+      youtube: { total: 12800000, day: 42000, week: 210000, month: 890000 },
+      apple_music: { total: 1850000, day: 6200, week: 41000, month: 168000 },
+      spotify: { total: 2420000, day: 8800, week: 52000, month: 210000 },
+      kkbox: { total: 980000, day: 4100, week: 28000, month: 112000 }
+    }
   },
   {
     id: "s02",
@@ -36,8 +40,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "聚會常用開場詩歌，節奏明亮、易唱。",
     created_at: "2026-08-20T10:00:00+08:00",
-    signals: { youtube: 9600000, apple_music: 74, spotify: 58, kkbox: 69 },
-    deltas: { day: 31000, week: 180000, month: 720000 }
+    signals: {
+      youtube: { total: 9600000, day: 31000, week: 180000, month: 720000 },
+      apple_music: { total: 1520000, day: 5100, week: 36000, month: 142000 },
+      spotify: { total: 1980000, day: 7200, week: 44000, month: 175000 },
+      kkbox: { total: 860000, day: 3600, week: 24000, month: 98000 }
+    }
   },
   {
     id: "s03",
@@ -56,8 +64,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "述說人生路上神的帶領與恩典，華語教會經典。",
     created_at: "2026-07-01T09:00:00+08:00",
-    signals: { youtube: 15200000, apple_music: 82, spotify: 71, kkbox: 80 },
-    deltas: { day: 51000, week: 265000, month: 1100000 }
+    signals: {
+      youtube: { total: 15200000, day: 51000, week: 265000, month: 1100000 },
+      apple_music: { total: 2680000, day: 9400, week: 61000, month: 248000 },
+      spotify: { total: 3120000, day: 11200, week: 68000, month: 275000 },
+      kkbox: { total: 1420000, day: 5800, week: 39000, month: 156000 }
+    }
   },
   {
     id: "s04",
@@ -76,8 +88,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "香港事工粵語敬拜代表作之一，適合主日敬拜。",
     created_at: "2026-10-02T14:00:00+08:00",
-    signals: { youtube: 2100000, apple_music: 55, spotify: 41, kkbox: 63 },
-    deltas: { day: 18000, week: 92000, month: 310000 }
+    signals: {
+      youtube: { total: 2100000, day: 18000, week: 92000, month: 310000 },
+      apple_music: { total: 420000, day: 2800, week: 18000, month: 72000 },
+      spotify: { total: 380000, day: 2100, week: 14000, month: 56000 },
+      kkbox: { total: 780000, day: 5200, week: 34000, month: 128000 }
+    }
   },
   {
     id: "s05",
@@ -95,8 +111,11 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "溫柔粵語敬拜，強調以神為生命中心。",
     created_at: "2026-10-18T11:00:00+08:00",
-    signals: { youtube: 860000, apple_music: 0, spotify: 33, kkbox: 48 },
-    deltas: { day: 12000, week: 64000, month: 180000 }
+    signals: {
+      youtube: { total: 860000, day: 12000, week: 64000, month: 180000 },
+      spotify: { total: 210000, day: 1600, week: 9800, month: 38000 },
+      kkbox: { total: 450000, day: 3100, week: 21000, month: 82000 }
+    }
   },
   {
     id: "s06",
@@ -115,8 +134,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "安靜、深刻的敬拜詩，常在禱告會使用。",
     created_at: "2026-06-15T16:00:00+08:00",
-    signals: { youtube: 7400000, apple_music: 70, spotify: 54, kkbox: 66 },
-    deltas: { day: 22000, week: 140000, month: 540000 }
+    signals: {
+      youtube: { total: 7400000, day: 22000, week: 140000, month: 540000 },
+      apple_music: { total: 1340000, day: 4500, week: 30000, month: 118000 },
+      spotify: { total: 1680000, day: 5800, week: 38000, month: 148000 },
+      kkbox: { total: 720000, day: 2900, week: 19000, month: 76000 }
+    }
   },
   {
     id: "s07",
@@ -134,8 +157,11 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "香港 ACM 粵語詩歌，宣告神作隨時的幫助。",
     created_at: "2026-10-21T09:30:00+08:00",
-    signals: { youtube: 540000, apple_music: 42, spotify: 0, kkbox: 51 },
-    deltas: { day: 9000, week: 48000, month: 150000 }
+    signals: {
+      youtube: { total: 540000, day: 9000, week: 48000, month: 150000 },
+      apple_music: { total: 185000, day: 1400, week: 9200, month: 36000 },
+      kkbox: { total: 520000, day: 3800, week: 25000, month: 96000 }
+    }
   },
   {
     id: "s08",
@@ -154,8 +180,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "安靜的敬拜氛圍，適合個人靈修與小組。",
     created_at: "2026-09-28T12:00:00+08:00",
-    signals: { youtube: 3200000, apple_music: 61, spotify: 47, kkbox: 58 },
-    deltas: { day: 15000, week: 88000, month: 290000 }
+    signals: {
+      youtube: { total: 3200000, day: 15000, week: 88000, month: 290000 },
+      apple_music: { total: 780000, day: 3200, week: 21000, month: 84000 },
+      spotify: { total: 920000, day: 3900, week: 26000, month: 102000 },
+      kkbox: { total: 540000, day: 2400, week: 16000, month: 64000 }
+    }
   },
   {
     id: "s09",
@@ -174,8 +204,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "華語經典感恩詩歌，跨世代傳唱。",
     created_at: "2026-05-10T08:00:00+08:00",
-    signals: { youtube: 18900000, apple_music: 85, spotify: 68, kkbox: 83 },
-    deltas: { day: 28000, week: 195000, month: 980000 }
+    signals: {
+      youtube: { total: 18900000, day: 28000, week: 195000, month: 980000 },
+      apple_music: { total: 2100000, day: 4800, week: 34000, month: 156000 },
+      spotify: { total: 2750000, day: 6100, week: 42000, month: 188000 },
+      kkbox: { total: 1680000, day: 4200, week: 31000, month: 142000 }
+    }
   },
   {
     id: "s10",
@@ -194,8 +228,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "回應呼召的詩歌，粵普版本皆常見。",
     created_at: "2026-10-24T18:00:00+08:00",
-    signals: { youtube: 1200000, apple_music: 49, spotify: 38, kkbox: 44 },
-    deltas: { day: 25000, week: 76000, month: 210000 }
+    signals: {
+      youtube: { total: 1200000, day: 25000, week: 76000, month: 210000 },
+      apple_music: { total: 310000, day: 3500, week: 16000, month: 58000 },
+      spotify: { total: 280000, day: 4200, week: 18000, month: 62000 },
+      kkbox: { total: 390000, day: 4800, week: 22000, month: 74000 }
+    }
   },
   {
     id: "s11",
@@ -214,8 +252,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "宏大敬拜風格，常作大型聚會主題曲。",
     created_at: "2026-04-02T10:00:00+08:00",
-    signals: { youtube: 6100000, apple_music: 66, spotify: 52, kkbox: 60 },
-    deltas: { day: 19000, week: 102000, month: 430000 }
+    signals: {
+      youtube: { total: 6100000, day: 19000, week: 102000, month: 430000 },
+      apple_music: { total: 980000, day: 2900, week: 19000, month: 78000 },
+      spotify: { total: 1240000, day: 3600, week: 24000, month: 96000 },
+      kkbox: { total: 610000, day: 2200, week: 15000, month: 58000 }
+    }
   },
   {
     id: "s12",
@@ -234,8 +276,12 @@ window.HYMN_SEED = [
     status: "published",
     blurb: "回應呼召、獻上生命的粵語敬拜歌。",
     created_at: "2026-10-08T15:00:00+08:00",
-    signals: { youtube: 980000, apple_music: 46, spotify: 35, kkbox: 52 },
-    deltas: { day: 14000, week: 71000, month: 240000 }
+    signals: {
+      youtube: { total: 980000, day: 14000, week: 71000, month: 240000 },
+      apple_music: { total: 260000, day: 1900, week: 12000, month: 48000 },
+      spotify: { total: 230000, day: 1500, week: 10000, month: 40000 },
+      kkbox: { total: 610000, day: 3400, week: 23000, month: 90000 }
+    }
   }
 ];
 
@@ -244,14 +290,6 @@ window.PLATFORM_META = {
   apple_music: { key: "apple_music", label: "Apple Music", short: "Apple", className: "apple" },
   spotify: { key: "spotify", label: "Spotify", short: "Spotify", className: "spotify" },
   kkbox: { key: "kkbox", label: "KKBOX", short: "KKBOX", className: "kkbox" }
-};
-
-/** Demo ranking weights (prototype). Real formula documented in design C. */
-window.RANK_WEIGHTS = {
-  youtube: 0.45,
-  apple_music: 0.2,
-  spotify: 0.2,
-  kkbox: 0.15
 };
 
 window.ADMIN_DEMO_KEY = "hymn-admin-demo";

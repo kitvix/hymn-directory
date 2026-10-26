@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v1";
+  const STORAGE_KEY = "hymn_directory_v2";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
 
@@ -21,34 +21,43 @@
 
   let state = loadState();
 
-  function normalizeSignal(platform, value) {
-    if (!value || value <= 0) return 0;
-    if (platform === "youtube") {
-      return Math.min(100, (Math.log10(value + 1) / Math.log10(2e7)) * 100);
-    }
-    return Math.min(100, value);
-  }
-
-  function compositeScore(song, timeWindow) {
-    const w = window.RANK_WEIGHTS;
-    let sum = 0;
-    let weightSum = 0;
+  /** Empty per-platform play metrics for user submissions */
+  function emptySignals() {
+    const out = {};
     PLATFORMS.forEach((p) => {
-      const hasLink = !!(song.links && song.links[p]);
-      const raw = (song.signals && song.signals[p]) || 0;
-      if (!hasLink || raw <= 0) return;
-      const n = normalizeSignal(p, raw);
-      sum += n * w[p];
-      weightSum += w[p];
+      out[p] = { total: 0, day: 0, week: 0, month: 0 };
     });
-    const base = weightSum > 0 ? sum / weightSum : 0;
-    const delta = (song.deltas && song.deltas[timeWindow]) || 0;
-    const deltaBoost = Math.min(30, Math.log10(delta + 1) * 8);
-    return Math.round((base * 0.7 + deltaBoost) * 10) / 10;
+    return out;
   }
 
-  function hotScore(song) {
-    return compositeScore(song, "month") * 0.6 + compositeScore(song, "week") * 0.4;
+  /** Read play count for platform + metric (total|day|week|month). */
+  function platformPlays(song, platform, metric) {
+    const sig = song.signals && song.signals[platform];
+    if (!sig || typeof sig !== "object") return 0;
+    return Number(sig[metric]) || 0;
+  }
+
+  /** Song qualifies for a platform chart: has link and positive signal for that chart metric. */
+  function onPlatformChart(song, platform, chart) {
+    if (!(song.links && song.links[platform])) return false;
+    if (chart === "最新") return true;
+    const metric = chartMetric(chart);
+    return platformPlays(song, platform, metric) > 0;
+  }
+
+  function chartMetric(chart) {
+    if (chart === "日榜") return "day";
+    if (chart === "周榜") return "week";
+    if (chart === "月榜") return "month";
+    if (chart === "最熱") return "total";
+    return "total";
+  }
+
+  function formatPlays(n) {
+    const v = Number(n) || 0;
+    if (v >= 1e8) return (v / 1e8).toFixed(1).replace(/\.0$/, "") + "億 次";
+    if (v >= 1e4) return (v / 1e4).toFixed(1).replace(/\.0$/, "") + "萬 次";
+    return v.toLocaleString("zh-HK") + " 次";
   }
 
   function publishedSongs() {
@@ -182,26 +191,34 @@
     `;
   }
 
-  function sortSongs(list, chart) {
+  function sortSongs(list, chart, platform) {
     const arr = list.slice();
     if (chart === "最新") {
       return arr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
-    if (chart === "最熱") {
-      return arr.sort((a, b) => hotScore(b) - hotScore(a));
-    }
-    const windowMap = { 日榜: "day", 周榜: "week", 月榜: "month" };
-    const win = windowMap[chart] || "week";
-    return arr.sort((a, b) => compositeScore(b, win) - compositeScore(a, win));
+    const metric = chartMetric(chart);
+    return arr.sort(
+      (a, b) => platformPlays(b, platform, metric) - platformPlays(a, platform, metric)
+    );
   }
 
-  function scoreLabel(song, chart) {
+  function scoreLabel(song, chart, platform) {
     if (chart === "最新") {
       return new Date(song.created_at).toLocaleDateString("zh-HK");
     }
-    if (chart === "最熱") return `熱度 ${hotScore(song)}`;
-    const windowMap = { 日榜: "day", 周榜: "week", 月榜: "month" };
-    return `綜合 ${compositeScore(song, windowMap[chart] || "week")}`;
+    const metric = chartMetric(chart);
+    const n = platformPlays(song, platform, metric);
+    if (chart === "日榜") return "今日 " + formatPlays(n);
+    if (chart === "周榜") return "本周 " + formatPlays(n);
+    if (chart === "月榜") return "本月 " + formatPlays(n);
+    return "播放 " + formatPlays(n);
+  }
+
+  function listenForPlatform(song, platform) {
+    if (song.links && song.links[platform]) {
+      return { url: song.links[platform], platform };
+    }
+    return firstListenUrl(song);
   }
 
   function renderHome() {
@@ -209,12 +226,14 @@
     const qIdx = hash.indexOf("?");
     const qs = qIdx >= 0 ? new URLSearchParams(hash.slice(qIdx + 1)) : new URLSearchParams();
     const chart = qs.get("chart") || "周榜";
+    const platformRaw = qs.get("platform") || "youtube";
+    const platform = PLATFORMS.includes(platformRaw) ? platformRaw : "youtube";
     const q = (qs.get("q") || "").trim();
     const lang = qs.get("lang") || "";
     const ministry = qs.get("ministry") || "";
-    const platform = qs.get("platform") || "";
+    const pMeta = window.PLATFORM_META[platform];
 
-    let list = publishedSongs();
+    let list = publishedSongs().filter((s) => onPlatformChart(s, platform, chart));
     if (q) {
       const qq = q.toLowerCase();
       list = list.filter(
@@ -226,11 +245,15 @@
     }
     if (lang) list = list.filter((s) => (s.languages || []).includes(lang));
     if (ministry) list = list.filter((s) => s.artist === ministry);
-    if (platform) list = list.filter((s) => s.links && s.links[platform]);
 
-    list = sortSongs(list, chart);
+    list = sortSongs(list, chart, platform);
     const ministries = [...new Set(publishedSongs().map((s) => s.artist))].sort();
-    const featured = list[0] || publishedSongs()[0];
+    const featured = list[0] || null;
+
+    const platformTabs = PLATFORMS.map((p) => {
+      const m = window.PLATFORM_META[p];
+      return `<button class="tab ${p === platform ? "active" : ""}" data-platform="${p}">${esc(m.label)}</button>`;
+    }).join("");
 
     const tabs = ["日榜", "周榜", "月榜", "最新", "最熱"]
       .map(
@@ -241,12 +264,12 @@
 
     const featureHtml = featured
       ? (() => {
-          const listen = firstListenUrl(featured);
+          const listen = listenForPlatform(featured, platform);
           return `
           <section class="hero-feature">
             <a href="#/song/${esc(featured.id)}" style="display:block">${coverHtml(featured, "cover-lg hero-cover")}</a>
             <div>
-              <p class="hero-kicker">精選 · ${esc(chart)}</p>
+              <p class="hero-kicker">${esc(pMeta.label)} · ${esc(chart)}</p>
               <div class="hero-meta-row">
                 ${langChips(featured.languages)}
                 <span class="chip">${esc(featured.artist)}</span>
@@ -270,7 +293,7 @@
       ? list
           .map((s, i) => {
             const rankClass = i < 3 ? "top" : "";
-            const listen = firstListenUrl(s);
+            const listen = listenForPlatform(s, platform);
             return `
             <article class="chart-row" data-id="${esc(s.id)}" role="link" tabindex="0">
               <div class="rank-num ${rankClass}">${i + 1}</div>
@@ -281,7 +304,7 @@
               </div>
               <div class="platform-icons">${platformDots(s)}</div>
               <div class="row-actions">
-                <span class="score mono">${esc(scoreLabel(s, chart))}</span>
+                <span class="score mono">${esc(scoreLabel(s, chart, platform))}</span>
                 ${
                   listen
                     ? `<a class="play-out" href="${esc(listen.url)}" target="_blank" rel="noopener noreferrer" title="出站收聽" data-row-out="${esc(s.id)}" onclick="event.stopPropagation()">${iconSvg("play")}</a>`
@@ -291,19 +314,20 @@
             </article>`;
           })
           .join("")
-      : `<div class="empty">搵唔到符合條件嘅詩歌。試下清篩選或換關鍵字。</div>`;
+      : `<div class="empty">呢個平台暫時冇符合條件嘅詩歌。試下換平台、榜單或清篩選。</div>`;
 
     return shell(
       `
       ${featureHtml}
 
       <div class="section-head">
-        <h2>${esc(chart)}</h2>
-        <span class="muted" style="font-size:13px">${list.length} 首 · 四平台綜合</span>
+        <h2>${esc(pMeta.label)} · ${esc(chart)}</h2>
+        <span class="muted" style="font-size:13px">${list.length} 首 · 純播放量</span>
       </div>
 
       <div class="toolbar">
-        <div class="tabs" id="chart-tabs">${tabs}</div>
+        <div class="tabs platform-tabs" id="platform-tabs" aria-label="平台榜">${platformTabs}</div>
+        <div class="tabs" id="chart-tabs" aria-label="榜單時段">${tabs}</div>
         <div class="toolbar-row">
           <div class="search-box">
             <span class="icon">${iconSvg("search")}</span>
@@ -322,13 +346,6 @@
                   `<option value="${esc(m)}" ${ministry === m ? "selected" : ""}>${esc(m)}</option>`
               )
               .join("")}
-          </select>
-          <select class="select" id="filter-platform">
-            <option value="">全部平台</option>
-            ${PLATFORMS.map((p) => {
-              const m = window.PLATFORM_META[p];
-              return `<option value="${p}" ${platform === p ? "selected" : ""}>${esc(m.label)}</option>`;
-            }).join("")}
           </select>
         </div>
       </div>
@@ -401,12 +418,17 @@
       </section>
 
       <section class="panel">
-        <h2>榜單訊號（示範）</h2>
-        <div class="props">
-          <div class="prop"><span class="k">日榜綜合分</span><span class="v mono">${compositeScore(song, "day")}</span></div>
-          <div class="prop"><span class="k">周榜綜合分</span><span class="v mono">${compositeScore(song, "week")}</span></div>
-          <div class="prop"><span class="k">月榜綜合分</span><span class="v mono">${compositeScore(song, "month")}</span></div>
-          <div class="prop"><span class="k">最熱分</span><span class="v mono">${Math.round(hotScore(song) * 10) / 10}</span></div>
+        <h2>各平台播放量（示範）</h2>
+        <div class="props platform-play-props">
+          ${PLATFORMS.map((p) => {
+            const m = window.PLATFORM_META[p];
+            const has = song.links && song.links[p];
+            const sig = (song.signals && song.signals[p]) || {};
+            if (!has) {
+              return `<div class="prop"><span class="k">${esc(m.label)}</span><span class="v muted">未連結</span></div>`;
+            }
+            return `<div class="prop prop-stack"><span class="k">${esc(m.label)}</span><span class="v mono">總 ${esc(formatPlays(sig.total || 0))} · 日 ${esc(formatPlays(sig.day || 0))} · 周 ${esc(formatPlays(sig.week || 0))} · 月 ${esc(formatPlays(sig.month || 0))}</span></div>`;
+          }).join("")}
         </div>
       </section>
 
@@ -586,6 +608,9 @@
   }
 
   function bindHome() {
+    document.querySelectorAll("#platform-tabs .tab").forEach((btn) => {
+      btn.addEventListener("click", () => setHomeQuery({ platform: btn.dataset.platform }));
+    });
     document.querySelectorAll("#chart-tabs .tab").forEach((btn) => {
       btn.addEventListener("click", () => setHomeQuery({ chart: btn.dataset.chart }));
     });
@@ -597,12 +622,12 @@
         t = setTimeout(() => setHomeQuery({ q: search.value.trim() }), 220);
       });
     }
-    ["filter-lang", "filter-ministry", "filter-platform"].forEach((id) => {
+    ["filter-lang", "filter-ministry"].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener("change", () => {
         const key = id.replace("filter-", "");
-        const map = { lang: "lang", ministry: "ministry", platform: "platform" };
+        const map = { lang: "lang", ministry: "ministry" };
         setHomeQuery({ [map[key]]: el.value });
       });
     });
@@ -729,8 +754,7 @@
         blurb,
         submitter_email: email || undefined,
         created_at: new Date().toISOString(),
-        signals: { youtube: 0, apple_music: 0, spotify: 0, kkbox: 0 },
-        deltas: { day: 0, week: 0, month: 0 }
+        signals: emptySignals()
       };
       state.songs.unshift(song);
       saveState(state);

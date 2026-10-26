@@ -335,6 +335,23 @@ img { max-width: 100%; display: block; }
   background: var(--ink);
   color: #0a0a0c;
 }
+
+.platform-tabs .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.prop-stack {
+  grid-column: 1 / -1;
+}
+.prop-stack .v {
+  white-space: normal;
+  line-height: 1.45;
+  font-size: 13px;
+}
+.platform-play-props {
+  gap: 10px;
+}
 .tab:hover:not(.active) { color: var(--ink); }
 
 /* Chart list — Spotify-like rows */
