@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v10";
+  const STORAGE_KEY = "hymn_directory_v11";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
   /** Outbound listen order: YouTube Music first, then YouTube, then others */
@@ -287,7 +287,7 @@
           </div>
           <main class="main">${content}</main>
           <footer class="footer">
-            V1 原型 · 榜單以 YouTube 頻道為準 · 出站含 YouTube Music／YouTube · Apple／Spotify／KKBOX 可選 · 自助上架暫停 · 唔託管音檔 ·
+            V1 原型 · 榜單數據來自官方頻道觀看 · 出站：YouTube Music／YouTube／Apple／Spotify／KKBOX · 自助上架暫停 · 唔託管音檔 ·
             <a href="#/admin">管理員</a>
           </footer>
         </div>
@@ -336,7 +336,6 @@
     const q = (qs.get("q") || "").trim();
     const lang = qs.get("lang") || "";
     const ministry = qs.get("ministry") || "";
-    const ytMeta = window.PLATFORM_META.youtube;
 
     let list = publishedSongs().filter((s) => onYoutubeChart(s, chart));
     if (q) {
@@ -352,7 +351,12 @@
     if (ministry) list = list.filter((s) => s.artist === ministry);
 
     list = sortSongs(list, chart);
-    const ministries = [...new Set(publishedSongs().map((s) => s.artist))].sort();
+    const ministryOrder = ["讚美之泉", "讚美之泉兒童", "約書亞樂團", "基恩敬拜", "小羊詩歌", "HKACM", "敬拜者使團"];
+    const ministrySet = new Set(publishedSongs().map((s) => s.artist));
+    const ministries = [
+      ...ministryOrder.filter((m) => ministrySet.has(m)),
+      ...[...ministrySet].filter((m) => !ministryOrder.includes(m)).sort()
+    ];
     const featured = list[0] || null;
 
     const tabs = ["新歌", "最熱"]
@@ -376,7 +380,7 @@
           <section class="hero-feature">
             <a href="#/song/${esc(featured.id)}" style="display:block">${coverHtml(featured, "cover-lg hero-cover")}</a>
             <div>
-              <p class="hero-kicker">${esc(ytMeta.label)} · ${esc(chart)}</p>
+              <p class="hero-kicker">${esc(chart)}</p>
               <div class="hero-meta-row">
                 ${langChips(featured.languages)}
                 <span class="chip">${esc(featured.artist)}</span>
@@ -421,14 +425,14 @@
             </article>`;
           })
           .join("")
-      : `<div class="empty">暫時冇符合條件嘅 YouTube 詩歌。試下換榜單或清篩選。</div>`;
+      : `<div class="empty">暫時冇符合條件嘅詩歌。試下換榜單或清篩選。</div>`;
 
     return shell(
       `
       ${featureHtml}
 
       <div class="section-head">
-        <h2>YouTube · ${esc(chart)}</h2>
+        <h2>${esc(chart)}</h2>
         ${liveNote}
       </div>
 
@@ -439,20 +443,33 @@
             <span class="icon">${iconSvg("search")}</span>
             <input id="search-input" type="search" placeholder="搜歌名、事工、主題…" value="${esc(q)}" />
           </div>
-          <select class="select" id="filter-lang">
-            <option value="">全部語言</option>
-            <option value="粵語" ${lang === "粵語" ? "selected" : ""}>粵語</option>
-            <option value="普通話" ${lang === "普通話" ? "selected" : ""}>普通話</option>
-          </select>
-          <select class="select" id="filter-ministry">
-            <option value="">全部機構</option>
-            ${ministries
-              .map(
-                (m) =>
-                  `<option value="${esc(m)}" ${ministry === m ? "selected" : ""}>${esc(m)}</option>`
-              )
-              .join("")}
-          </select>
+        </div>
+        <div class="filter-menus" aria-label="篩選">
+          <div class="filter-group">
+            <span class="filter-label">語言</span>
+            <div class="chip-bar" id="filter-lang-bar" role="list">
+              <button type="button" class="filter-chip ${!lang ? "active" : ""}" data-filter="lang" data-value="" role="listitem">全部</button>
+              ${[...new Set(publishedSongs().flatMap((s) => s.languages || []))]
+                .sort()
+                .map(
+                  (l) =>
+                    `<button type="button" class="filter-chip ${lang === l ? "active" : ""}" data-filter="lang" data-value="${esc(l)}" role="listitem">${esc(l)}</button>`
+                )
+                .join("")}
+            </div>
+          </div>
+          <div class="filter-group">
+            <span class="filter-label">機構</span>
+            <div class="chip-bar" id="filter-ministry-bar" role="list">
+              <button type="button" class="filter-chip ${!ministry ? "active" : ""}" data-filter="ministry" data-value="" role="listitem">全部</button>
+              ${ministries
+                .map(
+                  (m) =>
+                    `<button type="button" class="filter-chip ${ministry === m ? "active" : ""}" data-filter="ministry" data-value="${esc(m)}" role="listitem">${esc(m)}</button>`
+                )
+                .join("")}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -683,13 +700,11 @@
         t = setTimeout(() => setHomeQuery({ q: search.value.trim() }), 220);
       });
     }
-    ["filter-lang", "filter-ministry"].forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener("change", () => {
-        const key = id.replace("filter-", "");
-        const map = { lang: "lang", ministry: "ministry" };
-        setHomeQuery({ [map[key]]: el.value });
+    document.querySelectorAll(".filter-chip[data-filter]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.filter;
+        const val = btn.dataset.value || "";
+        if (key === "lang" || key === "ministry") setHomeQuery({ [key]: val });
       });
     });
     document.querySelectorAll(".chart-row").forEach((card) => {

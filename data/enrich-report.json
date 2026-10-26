@@ -1,0 +1,18 @@
+{
+  "total": 5422,
+  "apple_music": {
+    "filled": 2432,
+    "rate": 44.85
+  },
+  "spotify": {
+    "filled": 0,
+    "rate": 0,
+    "skipped": true
+  },
+  "kkbox": {
+    "filled": 0,
+    "rate": 0,
+    "skipped": true
+  },
+  "note": "Only deep links written; search-page URLs never stored. KKBOX skipped."
+}
