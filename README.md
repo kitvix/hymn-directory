@@ -1,6 +1,6 @@
 # 詩歌目錄 — V1 前端原型（B）
 
-華語基督教詩歌目錄原型：以「歌」為單位，出站連去 YouTube／Apple Music／Spotify／KKBOX。免登入上架，管理員審核後公開。資料存瀏覽器 `localStorage`（各用戶／裝置互不同步）。
+華語基督教詩歌目錄原型：以「歌」為單位，出站連去 YouTube／Apple Music／Spotify／KKBOX。**公開自助上架已暫停**；之後以官方頻道白名單＋管理員審核收錄。資料存瀏覽器 `localStorage`（各用戶／裝置互不同步）。
 
 路由用 hash（`#/song/...`）。部署到 Vercel 時會多一個 serverless API 拉 YouTube 真觀看次數。
 
@@ -62,7 +62,7 @@ vercel
 3. Framework **Other**；Build／Output 留空  
 4. 加環境變數 `YOUTUBE_API_KEY` → Deploy  
 
-部署後：`/` 首頁、`#/submit` 上架、`#/admin` 管理（密碼 `hymn-admin-demo`）。
+部署後：`/` 首頁、`#/admin` 管理（密碼 `hymn-admin-demo`）。`#/submit` 顯示「暫停開放」，唔再接受公開提交。
 
 ## UI
 
@@ -74,8 +74,8 @@ vercel
 |------|------|
 | 首頁 | YouTube 榜；日／周／月／新歌／最熱；搜尋；語言／機構篩選 |
 | 詳情 | 大封面；多平台出站掣；YouTube 觀看／上傳日；投票；相關推薦 |
-| 上架 | 免登入；待審；每日約 3 首／裝置 |
-| 管理 | 密碼閘；通過／退回；重設示範數據 |
+| 上架 | **暫停開放**（`#/submit` 只顯示暫停頁） |
+| 管理 | 密碼閘；審核既有 pending；通過／退回；重設示範數據 |
 
 ## 檔案
 
@@ -88,8 +88,12 @@ vercel
 - `live-stats.json` — 本機／靜態 fallback  
 - `vercel.json` — 部署設定（SPA rewrite 避開 `/api`）  
 
+## 收錄方向（暫）
+
+公開自助上架已關。下一階段建議：維護機構官方 YouTube 頻道白名單 → 定時掃描 → pending → 管理員審核後公開。
+
 ## 注意
 
 - Seed 只收**機構官方**連結；唔抓私人帳號。  
-- Storage key：`hymn_directory_v6`（硬刷新或 Admin「重設」先見到新榜邏輯）。  
+- Storage key：`hymn_directory_v7`（硬刷新或 Admin「重設」先見到新邏輯；自助上架已關）。  
 - URL 舊參數 `platform=` 可忽略；`chart=最新` 仍當 `新歌`。  

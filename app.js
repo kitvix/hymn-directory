@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v6";
+  const STORAGE_KEY = "hymn_directory_v7";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
 
@@ -266,7 +266,6 @@
         <nav class="side-nav" aria-label="主選單">
           <a class="side-brand" href="#/" title="詩歌目錄">詩</a>
           <a class="nav-item ${act === "home" ? "active" : ""}" href="#/">${iconSvg("home")}<span class="nav-label">目錄</span></a>
-          <a class="nav-item ${act === "submit" ? "active" : ""}" href="#/submit">${iconSvg("plus")}<span class="nav-label">上架</span></a>
           <div class="side-spacer"></div>
           <a class="nav-item ${act === "admin" ? "active" : ""}" href="#/admin">${iconSvg("admin")}<span class="nav-label">管理</span></a>
         </nav>
@@ -276,19 +275,15 @@
               <span class="mark">詩</span>
               <span>詩歌目錄</span>
             </a>
-            <div class="mobile-actions">
-              <a class="btn btn-sm btn-primary" href="#/submit">上架</a>
-            </div>
           </div>
           <main class="main">${content}</main>
           <footer class="footer">
-            V1 原型 · 榜單以 YouTube 為準 · Apple／Spotify／KKBOX 只作出站連結 · 唔託管音檔 ·
+            V1 原型 · 榜單以 YouTube 為準 · Apple／Spotify／KKBOX 只作出站連結 · 自助上架暫停 · 唔託管音檔 ·
             <a href="#/admin">管理員</a>
           </footer>
         </div>
         <nav class="bottom-nav" aria-label="底部選單">
           <a class="${act === "home" ? "active" : ""}" href="#/">${iconSvg("home")}<span>目錄</span></a>
-          <a class="${act === "submit" ? "active" : ""}" href="#/submit">${iconSvg("plus")}<span>上架</span></a>
           <a class="${act === "admin" ? "active" : ""}" href="#/admin">${iconSvg("admin")}<span>管理</span></a>
         </nav>
       </div>
@@ -569,76 +564,18 @@
     );
   }
 
-  function renderSubmit(msg) {
+  function renderSubmit() {
     return shell(
       `
       <a class="back-link" href="#/">${iconSvg("back")} 返回目錄</a>
-      <h1 class="page-title">自助上架詩歌</h1>
-      <p class="page-desc">免登入提交。提交後進入待審，管理員通過先公開。鼓勵一次填齊已知平台連結。</p>
+      <h1 class="page-title">自助上架暫停開放</h1>
+      <p class="page-desc">公開自助上架暫時關閉。目錄改由官方頻道白名單＋管理員審核收錄。</p>
       <section class="panel">
-        ${msg || ""}
-        <div class="form-grid" id="submit-form">
-          <div class="field">
-            <label for="f-title">歌名 *</label>
-            <input id="f-title" required placeholder="例如：奇妙的愛" />
-          </div>
-          <div class="field">
-            <label for="f-artist">機構／藝人 *</label>
-            <input id="f-artist" required placeholder="例如：讚美之泉" />
-          </div>
-          <div class="field">
-            <label for="f-lang">語言 *</label>
-            <select id="f-lang">
-              <option value="粵語">粵語</option>
-              <option value="普通話">普通話</option>
-              <option value="粵語,普通話">粵語＋普通話</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="f-themes">主題（逗號分隔）</label>
-            <input id="f-themes" placeholder="敬拜, 感恩" />
-          </div>
-          <div class="field">
-            <label for="f-yt">YouTube 連結</label>
-            <input id="f-yt" type="url" placeholder="https://www.youtube.com/..." />
-          </div>
-          <div class="field">
-            <label for="f-apple">Apple Music 連結</label>
-            <input id="f-apple" type="url" placeholder="https://music.apple.com/..." />
-          </div>
-          <div class="field">
-            <label for="f-spotify">Spotify 連結</label>
-            <input id="f-spotify" type="url" placeholder="https://open.spotify.com/..." />
-          </div>
-          <div class="field">
-            <label for="f-kkbox">KKBOX 連結</label>
-            <input id="f-kkbox" type="url" placeholder="https://www.kkbox.com/..." />
-          </div>
-          <div class="field">
-            <label for="f-cover">封面圖 URL（選填）</label>
-            <input id="f-cover" type="url" placeholder="https://… 或留空：有 YouTube 會用其縮圖" />
-            <div class="cover-preview-wrap" id="cover-preview-wrap" hidden>
-              <img id="cover-preview" class="cover-preview" alt="封面預覽" />
-            </div>
-          </div>
-          <div class="field">
-            <label for="f-blurb">簡介</label>
-            <textarea id="f-blurb" placeholder="一句話介紹呢首歌…"></textarea>
-          </div>
-          <div class="field">
-            <label for="f-email">聯絡電郵（選填）</label>
-            <input id="f-email" type="email" placeholder="you@example.com" />
-          </div>
-          <label class="check">
-            <input type="checkbox" id="f-declare" />
-            <span>我聲明本人係權利人／已獲授權分享以上官方連結，並明白本站只做目錄出站，唔託管音檔。</span>
-          </label>
-          <button class="btn btn-primary btn-block" id="submit-btn" type="button">提交審核</button>
-          <p class="field-hint">每日建議上限：每裝置約 3 首（原型以瀏覽器記錄示意）。</p>
-        </div>
+        <div class="alert alert-info">如需上架機構官方詩歌，請聯絡管理員（示範後台仍可審核既有 pending）。</div>
+        <a class="btn btn-primary" href="#/">返回目錄</a>
       </section>
     `,
-      "submit"
+      "home"
     );
   }
 
@@ -692,7 +629,7 @@
             </div>`;
           })
           .join("")
-      : `<div class="empty">暫時冇待審項目。可去「上架詩歌」提交一條測試。</div>`;
+      : `<div class="empty">暫時冇待審項目。公開自助上架已暫停；之後可由白名單掃描／管理員匯入。</div>`;
 
     return shell(
       `
@@ -792,127 +729,6 @@
     }
   }
 
-  function todayKey() {
-    return new Date().toISOString().slice(0, 10);
-  }
-
-  function canSubmit() {
-    const key = "hymn_submit_" + todayKey();
-    const n = Number(localStorage.getItem(key) || "0");
-    return n < 3;
-  }
-
-  function bumpSubmit() {
-    const key = "hymn_submit_" + todayKey();
-    const n = Number(localStorage.getItem(key) || "0");
-    localStorage.setItem(key, String(n + 1));
-  }
-
-  function bindSubmit() {
-    const btn = document.getElementById("submit-btn");
-    if (!btn) return;
-    function showSubmitMsg(html) {
-      const app = document.getElementById("app");
-      app.innerHTML = renderSubmit(html);
-      bindSubmit();
-    }
-
-    function refreshCoverPreview() {
-      const wrap = document.getElementById("cover-preview-wrap");
-      const img = document.getElementById("cover-preview");
-      if (!wrap || !img) return;
-      const manual = (document.getElementById("f-cover")?.value || "").trim();
-      const ytVal = (document.getElementById("f-yt")?.value || "").trim();
-      const src = manual || ytThumbFromUrl(ytVal);
-      if (src) {
-        img.onerror = () => { wrap.hidden = true; };
-        img.src = src;
-        wrap.hidden = false;
-      } else {
-        img.removeAttribute("src");
-        wrap.hidden = true;
-      }
-    }
-    ["f-cover", "f-yt"].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.addEventListener("input", refreshCoverPreview);
-        el.addEventListener("change", refreshCoverPreview);
-      }
-    });
-    refreshCoverPreview();
-
-    btn.addEventListener("click", () => {
-      const title = document.getElementById("f-title").value.trim();
-      const artist = document.getElementById("f-artist").value.trim();
-      const langRaw = document.getElementById("f-lang").value;
-      const themes = document
-        .getElementById("f-themes")
-        .value.split(/[,，]/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const blurb = document.getElementById("f-blurb").value.trim();
-      const email = document.getElementById("f-email").value.trim();
-      const declare = document.getElementById("f-declare").checked;
-      const links = {};
-      const yt = document.getElementById("f-yt").value.trim();
-      const apple = document.getElementById("f-apple").value.trim();
-      const spotify = document.getElementById("f-spotify").value.trim();
-      const kkbox = document.getElementById("f-kkbox").value.trim();
-      if (yt) links.youtube = yt;
-      if (apple) links.apple_music = apple;
-      if (spotify) links.spotify = spotify;
-      if (kkbox) links.kkbox = kkbox;
-
-      if (!title || !artist) {
-        showSubmitMsg(`<div class="alert alert-err">請填歌名同機構／藝人。</div>`);
-        return;
-      }
-      if (!Object.keys(links).length) {
-        showSubmitMsg(
-          `<div class="alert alert-err">請至少填一個平台官方連結（YouTube／Apple／Spotify／KKBOX）。</div>`
-        );
-        return;
-      }
-      if (!declare) {
-        showSubmitMsg(`<div class="alert alert-err">請勾選權利／授權聲明。</div>`);
-        return;
-      }
-      if (!canSubmit()) {
-        showSubmitMsg(
-          `<div class="alert alert-warn">今日已達提交上限（3 首）。請明日再試，或聯絡管理員。</div>`
-        );
-        return;
-      }
-
-      const palette = window.COVER_PALETTE || [["#7c3aed", "#db2777"]];
-      const coverManual = (document.getElementById("f-cover")?.value || "").trim();
-      const coverUrl = coverManual || ytThumbFromUrl(yt) || undefined;
-      const song = {
-        id: "u" + Date.now().toString(36),
-        title,
-        artist,
-        languages: langRaw.split(","),
-        themes,
-        coverColor: palette[Math.floor(Math.random() * palette.length)],
-        coverUrl,
-        links,
-        source: "creator",
-        status: "pending",
-        blurb,
-        submitter_email: email || undefined,
-        created_at: new Date().toISOString(),
-        signals: emptySignals()
-      };
-      state.songs.unshift(song);
-      saveState(state);
-      bumpSubmit();
-      showSubmitMsg(
-        `<div class="alert alert-ok">已提交「${esc(title)}」，狀態為待審。管理員通過後先會出現喺目錄。</div>`
-      );
-    });
-  }
-
   function bindAdmin() {
     const login = document.getElementById("admin-login");
     if (login) {
@@ -980,14 +796,13 @@
       bindSong(r.id);
     } else if (r.name === "submit") {
       app.innerHTML = renderSubmit();
-      bindSubmit();
     } else if (r.name === "admin") {
       app.innerHTML = renderAdmin();
       bindAdmin();
     }
     document.title =
       r.name === "submit"
-        ? "上架詩歌 — 詩歌目錄"
+        ? "上架暫停 — 詩歌目錄"
         : r.name === "admin"
           ? "管理 — 詩歌目錄"
           : r.name === "song"
