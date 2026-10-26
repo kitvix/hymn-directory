@@ -10,7 +10,7 @@
 
 | 平台 | 各自榜單 |
 |------|----------|
-| YouTube | 日榜／周榜／月榜／最新／最熱 |
+| YouTube | 日榜／周榜／月榜／新歌／最熱 |
 | Apple Music | 同上 |
 | Spotify | 同上 |
 | KKBOX | 同上 |
@@ -19,8 +19,9 @@
 
 - **日榜／周榜／月榜**：按該平台 `signals[platform].day|week|month` 播放（或觀看）增量由高至低  
 - **最熱**：按該平台 `signals[platform].total` 累計播放量  
-- **最新**：按 `created_at` 由新至舊（仍只顯示該平台有連結嘅歌）  
-- 缺連結，或該平台對應指標為 0 → **唔入呢個平台榜**
+- **新歌**：按該平台 `released_at[platform]`（平台發行／上傳日）由新至舊；缺該平台連結或缺 `released_at` → **唔入新歌榜**  
+- 日／周／月／最熱：缺連結，或該平台對應播放指標為 0 → **唔入呢個平台榜**  
+- URL 舊值 `chart=最新` 會當成 `新歌`（相容）
 
 示範 `signals` 形狀：
 
@@ -33,7 +34,20 @@ signals: {
 }
 ```
 
-URL 會記住選擇，例如 `#/?platform=spotify&chart=日榜`。
+`released_at`（新歌用；只寫有已知日期嘅平台）：
+
+```js
+released_at: {
+  youtube: "ISO",       // 示範：影片 uploadDate
+  apple_music: "ISO", // 示範：專輯／目錄發行日
+  spotify: "ISO",
+  kkbox: "ISO"
+}
+```
+
+示範日期來源：YouTube 用公開頁面 `uploadDate`；串流平台用專輯／目錄發行日（SOP／KKBOX／Apple 等公開資料）。部分為 demo 估算，唔保證同各店上架日完全一致。`created_at` 仍係本站收錄日（Admin／目錄用）。
+
+URL 會記住選擇，例如 `#/?platform=spotify&chart=日榜` 或 `#/?platform=youtube&chart=新歌`。
 
 ## UI
 
@@ -66,6 +80,7 @@ vercel
 - 管理員密碼喺前端，僅 demo  
 - 示範平台連結係已核實嘅曲目／影片深層連結（唔係搜尋頁）；缺核實嘅平台會省略該 key  
 - 播放量係 seed 示範數字，唔係即時 API  
+- `released_at` 係示範／公開資料估算，唔係各平台即時 API  
 
 ## 本機預覽
 
@@ -82,7 +97,7 @@ python3 -m http.server 8765
 
 | 頁面 | 內容 |
 |------|------|
-| 首頁 | 精選 Hero；平台 tab（YT／Apple／Spotify／KKBOX）；日／周／月／最新／最熱；搜尋；語言／機構篩選；榜單封面＋出站掣 |
+| 首頁 | 精選 Hero；平台 tab（YT／Apple／Spotify／KKBOX）；日／周／月／新歌／最熱；搜尋；語言／機構篩選；榜單封面＋出站掣 |
 | 詳情 | 大封面；多平台「喺某某聽」掣；各平台播放量；有用／唔啱；相關推薦 |
 | 上架 | 免登入表單；提交後 `pending`；每日每裝置約 3 首上限 |
 | 管理 | 密碼閘；通過／退回；重設示範數據 |
@@ -91,7 +106,7 @@ python3 -m http.server 8765
 
 - `index.html` — 入口  
 - `styles.css` — 深色音樂平台樣式（響應式、繁中）  
-- `data.js` — 12 首示範歌＋每平台 `{ total, day, week, month }` 播放量  
+- `data.js` — 12 首示範歌＋每平台播放量＋`released_at`  
 - `app.js` — SPA 邏輯（hash 路由、平台榜排序、封面／icon）  
 - `vercel.json` — Vercel 靜態部署設定  
 - `screenshots/` — UI 截圖參考  
@@ -100,4 +115,5 @@ python3 -m http.server 8765
 
 - Seed 出站連結應為官方／機構曲目頁（`watch?v=`、Apple／Spotify track、KKBOX song）。唔好再放搜尋頁。  
 - 每首歌可有 `coverUrl`（https 圖）；優先 YouTube `i.ytimg.com/vi/<id>/hqdefault.jpg`，否則用 Apple／Spotify 專輯圖。`coverColor` 仍作 fallback。  
-- Storage key 已升至 `hymn_directory_v3`（自動載入新 seed）。若仍見舊搜尋連結，Admin「重設為示範數據」或清該 key。  
+- Storage key 已升至 `hymn_directory_v4`（自動載入含 `released_at` 嘅新 seed）。若仍見「最新」或舊排序，Admin「重設為示範數據」或清該 key。  
+- 上架提交只設 `created_at`；未填 `released_at` 嘅歌唔會出現喺各平台「新歌」榜，直至補上。  

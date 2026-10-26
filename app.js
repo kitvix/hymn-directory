@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v3";
+  const STORAGE_KEY = "hymn_directory_v4";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
 
@@ -30,6 +30,18 @@
     return out;
   }
 
+  /** Normalize chart query: legacy 「最新」 → 「新歌」. */
+  function normalizeChart(chart) {
+    if (chart === "最新") return "新歌";
+    return chart || "周榜";
+  }
+
+  /** Platform release/upload ISO for 新歌 chart. */
+  function platformReleasedAt(song, platform) {
+    const ra = song.released_at && song.released_at[platform];
+    return ra ? String(ra) : "";
+  }
+
   /** Read play count for platform + metric (total|day|week|month). */
   function platformPlays(song, platform, metric) {
     const sig = song.signals && song.signals[platform];
@@ -37,10 +49,10 @@
     return Number(sig[metric]) || 0;
   }
 
-  /** Song qualifies for a platform chart: has link and positive signal for that chart metric. */
+  /** Song qualifies for a platform chart: has link; 新歌 also needs released_at; play charts need positive signal. */
   function onPlatformChart(song, platform, chart) {
     if (!(song.links && song.links[platform])) return false;
-    if (chart === "最新") return true;
+    if (chart === "新歌") return !!platformReleasedAt(song, platform);
     const metric = chartMetric(chart);
     return platformPlays(song, platform, metric) > 0;
   }
@@ -206,8 +218,12 @@
 
   function sortSongs(list, chart, platform) {
     const arr = list.slice();
-    if (chart === "最新") {
-      return arr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    if (chart === "新歌") {
+      return arr.sort(
+        (a, b) =>
+          new Date(platformReleasedAt(b, platform)) -
+          new Date(platformReleasedAt(a, platform))
+      );
     }
     const metric = chartMetric(chart);
     return arr.sort(
@@ -216,8 +232,9 @@
   }
 
   function scoreLabel(song, chart, platform) {
-    if (chart === "最新") {
-      return new Date(song.created_at).toLocaleDateString("zh-HK");
+    if (chart === "新歌") {
+      const iso = platformReleasedAt(song, platform);
+      return iso ? new Date(iso).toLocaleDateString("zh-HK") : "";
     }
     const metric = chartMetric(chart);
     const n = platformPlays(song, platform, metric);
@@ -238,7 +255,7 @@
     const hash = location.hash;
     const qIdx = hash.indexOf("?");
     const qs = qIdx >= 0 ? new URLSearchParams(hash.slice(qIdx + 1)) : new URLSearchParams();
-    const chart = qs.get("chart") || "周榜";
+    const chart = normalizeChart(qs.get("chart") || "周榜");
     const platformRaw = qs.get("platform") || "youtube";
     const platform = PLATFORMS.includes(platformRaw) ? platformRaw : "youtube";
     const q = (qs.get("q") || "").trim();
@@ -268,7 +285,7 @@
       return `<button class="tab ${p === platform ? "active" : ""}" data-platform="${p}">${esc(m.label)}</button>`;
     }).join("");
 
-    const tabs = ["日榜", "周榜", "月榜", "最新", "最熱"]
+    const tabs = ["日榜", "周榜", "月榜", "新歌", "最熱"]
       .map(
         (t) =>
           `<button class="tab ${t === chart ? "active" : ""}" data-chart="${esc(t)}">${esc(t)}</button>`
