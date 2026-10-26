@@ -328,6 +328,203 @@
     return firstListenUrl(song);
   }
 
+  let virtualCleanup = null;
+  let homeGrid = null;
+
+  function teardownVirtual() {
+    if (virtualCleanup) {
+      virtualCleanup();
+      virtualCleanup = null;
+    }
+  }
+
+  /** Image-forward chart / related card. Rank and outbound play sit on the cover. */
+  function songCardHtml(song, index, chart, opts) {
+    opts = opts || {};
+    const showRank = !!opts.showRank;
+    const rank = index + 1;
+    const listen = preferListen(song);
+    const [c1, c2] = coverColors(song);
+    const grad = "linear-gradient(145deg," + esc(c1) + "," + esc(c2) + ")";
+    const url = (song.coverUrl || "").trim();
+    const langs = (song.languages || []).filter(Boolean).map(esc).join("／");
+    const score = chart ? scoreLabel(song, chart) : "";
+    const dots = platformDots(song);
+    const label =
+      (showRank ? rank + " " : "") + (song.title || "") + "，" + (song.artist || "");
+    const styleAttr = opts.style ? ' style="' + opts.style + '"' : "";
+    const img = url
+      ? '<img class="media-img" src="' +
+        esc(url) +
+        '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()"/>'
+      : "";
+    const rankHtml = showRank
+      ? '<div class="song-card-rank' + (rank <= 3 ? " top" : "") + '">' + rank + "</div>"
+      : "";
+    const play = listen
+      ? '<a class="play-out song-card-play" href="' +
+        esc(listen.url) +
+        '" target="_blank" rel="noopener noreferrer" title="出站收聽" aria-label="' +
+        esc("出站收聽：" + (song.title || "")) +
+        '" data-row-out="' +
+        esc(song.id) +
+        '">' +
+        iconSvg("play") +
+        "</a>"
+      : "";
+    const meta =
+      score || dots
+        ? '<div class="song-card-meta">' +
+          (score ? '<span class="score mono">' + esc(score) + "</span>" : "<span></span>") +
+          (dots ? '<span class="platform-icons">' + dots + "</span>" : "") +
+          "</div>"
+        : "";
+    return (
+      '<article class="song-card' +
+      (opts.flow ? " in-flow" : "") +
+      '" role="listitem" data-id="' +
+      esc(song.id) +
+      '"' +
+      styleAttr +
+      ">" +
+      '<a class="song-card-open" href="#/song/' +
+      esc(song.id) +
+      '" aria-label="' +
+      esc(label) +
+      '">' +
+      '<div class="media-frame" style="background:' +
+      grad +
+      '">' +
+      img +
+      '<span class="media-fallback" aria-hidden="true">' +
+      esc(coverInitials(song)) +
+      "</span></div>" +
+      '<div class="song-card-scrim" aria-hidden="true"></div>' +
+      '<div class="song-card-copy"><h3>' +
+      esc(song.title) +
+      "</h3><p>" +
+      esc(song.artist) +
+      (langs ? " · " + langs : "") +
+      "</p>" +
+      meta +
+      "</div></a>" +
+      rankHtml +
+      play +
+      "</article>"
+    );
+  }
+
+  /**
+   * Keep only the visible chart rows in the DOM. The full list is thousands of
+   * songs; mounting every cover freezes the page.
+   */
+  function mountVirtualGrid(songs, chart) {
+    teardownVirtual();
+    const root = document.getElementById("chart-grid");
+    if (!root) return;
+    if (!songs.length) {
+      root.style.height = "auto";
+      root.innerHTML = "";
+      return;
+    }
+
+    const GAP = 14;
+    let lastKey = "";
+    let raf = 0;
+    let retries = 0;
+
+    function colsFor(width) {
+      if (width < 520) return 1;
+      if (width < 860) return 2;
+      return 3;
+    }
+
+    function renderWindow() {
+      const width = root.clientWidth;
+      if (width < 8) {
+        if (retries < 8) {
+          retries += 1;
+          requestAnimationFrame(renderWindow);
+        }
+        return;
+      }
+      retries = 0;
+      const cols = colsFor(width);
+      const cardW = Math.floor((width - GAP * (cols - 1)) / cols);
+      const cardH = Math.max(120, Math.round((cardW * 9) / 16));
+      const stride = cardH + GAP;
+      const totalRows = Math.ceil(songs.length / cols);
+      const totalH = totalRows > 0 ? totalRows * stride - GAP : 0;
+      if (root.style.height !== totalH + "px") root.style.height = totalH + "px";
+
+      const topDoc = root.getBoundingClientRect().top + window.scrollY;
+      const viewTop = window.scrollY - topDoc;
+      const overscan = stride * 2;
+      let startRow = Math.floor((viewTop - overscan) / stride);
+      let endRow = Math.ceil((viewTop + window.innerHeight + overscan) / stride);
+      if (startRow < 0) startRow = 0;
+      if (endRow > totalRows) endRow = totalRows;
+      if (endRow < startRow) endRow = startRow;
+      const start = startRow * cols;
+      const end = Math.min(songs.length, endRow * cols);
+      const key = start + ":" + end + ":" + cols + ":" + cardW;
+      if (key === lastKey) return;
+      lastKey = key;
+
+      const needed = new Set();
+      for (let i = start; i < end; i++) needed.add(songs[i].id);
+      root.querySelectorAll(":scope > .song-card").forEach((el) => {
+        if (!needed.has(el.dataset.id)) el.remove();
+      });
+      const have = new Map();
+      root.querySelectorAll(":scope > .song-card").forEach((el) => have.set(el.dataset.id, el));
+
+      const frag = document.createDocumentFragment();
+      for (let i = start; i < end; i++) {
+        const song = songs[i];
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const top = row * stride;
+        const left = col * (cardW + GAP);
+        const pos =
+          "top:" + top + "px;left:" + left + "px;width:" + cardW + "px;height:" + cardH + "px";
+        let el = have.get(song.id);
+        if (!el) {
+          const holder = document.createElement("template");
+          holder.innerHTML = songCardHtml(song, i, chart, { showRank: true, style: pos }).trim();
+          el = holder.content.firstElementChild;
+        } else {
+          el.style.top = top + "px";
+          el.style.left = left + "px";
+          el.style.width = cardW + "px";
+          el.style.height = cardH + "px";
+        }
+        frag.appendChild(el);
+      }
+      root.appendChild(frag);
+    }
+
+    function schedule() {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        renderWindow();
+      });
+    }
+
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    if (ro) ro.observe(root);
+    virtualCleanup = () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (ro) ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+    renderWindow();
+  }
+
   function renderHome() {
     const hash = location.hash;
     const qIdx = hash.indexOf("?");
@@ -358,6 +555,7 @@
       ...[...ministrySet].filter((m) => !ministryOrder.includes(m)).sort()
     ];
     const featured = list[0] || null;
+    homeGrid = { songs: list, chart };
 
     const tabs = ["新歌", "最熱"]
       .map(
@@ -376,55 +574,43 @@
     const featureHtml = featured
       ? (() => {
           const listen = preferListen(featured);
+          const [c1, c2] = coverColors(featured);
+          const cover = (featured.coverUrl || "").trim();
+          const blurb = featured.blurb || "一個目錄，聽齊華語詩歌。點掣跳去你慣用平台。";
           return `
-          <section class="hero-feature">
-            <a href="#/song/${esc(featured.id)}" style="display:block">${coverHtml(featured, "cover-lg hero-cover")}</a>
-            <div>
-              <p class="hero-kicker">${esc(chart)}</p>
-              <div class="hero-meta-row">
-                ${langChips(featured.languages)}
-                <span class="chip">${esc(featured.artist)}</span>
-              </div>
+          <section class="poster hero-feature" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)}">
+            <div class="hero-visual">
+              ${
+                cover
+                  ? `<img class="hero-bg-img" src="${esc(cover)}" alt="" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()"/>`
+                  : ""
+              }
+            </div>
+            <div class="hero-scrim" aria-hidden="true"></div>
+            <a class="hero-hit" href="#/song/${esc(featured.id)}" tabindex="-1" aria-hidden="true"></a>
+            <div class="hero-content">
+              <p class="hero-kicker"><span class="glass-pill">${esc(chart)} · 第 1 名</span></p>
               <h1><a href="#/song/${esc(featured.id)}">${esc(featured.title)}</a></h1>
-              <p class="sub">${esc(featured.blurb || "一個目錄，聽齊華語詩歌。點掣跳去你慣用平台。")}</p>
+              <div class="hero-meta-row">
+                <span class="chip">${esc(featured.artist)}</span>
+                ${langChips(featured.languages)}
+              </div>
+              <p class="sub">${esc(blurb)}</p>
               <div class="hero-actions">
                 ${
                   listen
-                    ? `<a class="btn btn-primary" href="${esc(listen.url)}" target="_blank" rel="noopener noreferrer" data-feature-out="${esc(featured.id)}">${iconSvg("play")} 喺 ${esc(window.PLATFORM_META[listen.platform].label)} 聽</a>`
+                    ? `<a class="btn btn-play" href="${esc(listen.url)}" target="_blank" rel="noopener noreferrer" data-feature-out="${esc(featured.id)}">${iconSvg("play")} 喺 ${esc(window.PLATFORM_META[listen.platform].label)} 聽</a>`
                     : ""
                 }
-                <a class="btn" href="#/song/${esc(featured.id)}">睇詳情</a>
+                <a class="btn btn-glass" href="#/song/${esc(featured.id)}">睇詳情</a>
               </div>
             </div>
           </section>`;
         })()
       : "";
 
-    const rows = list.length
-      ? list
-          .map((s, i) => {
-            const rankClass = i < 3 ? "top" : "";
-            const listen = preferListen(s);
-            return `
-            <article class="chart-row" data-id="${esc(s.id)}" role="link" tabindex="0">
-              <div class="rank-num ${rankClass}">${i + 1}</div>
-              ${coverHtml(s, "cover-sm")}
-              <div class="chart-meta">
-                <h3>${esc(s.title)}</h3>
-                <div class="artist">${esc(s.artist)} · ${(s.languages || []).map(esc).join("／")}</div>
-              </div>
-              <div class="platform-icons">${platformDots(s)}</div>
-              <div class="row-actions">
-                <span class="score mono">${esc(scoreLabel(s, chart))}</span>
-                ${
-                  listen
-                    ? `<a class="play-out" href="${esc(listen.url)}" target="_blank" rel="noopener noreferrer" title="出站收聽" data-row-out="${esc(s.id)}" onclick="event.stopPropagation()">${iconSvg("play")}</a>`
-                    : `<span class="play-out play-out-ghost" title="暫無連結">${iconSvg("play")}</span>`
-                }
-              </div>
-            </article>`;
-          })
-          .join("")
+    const grid = list.length
+      ? `<div class="chart-grid" id="chart-grid" role="list" aria-label="${esc(chart)}榜"></div>`
       : `<div class="empty">暫時冇符合條件嘅詩歌。試下換榜單或清篩選。</div>`;
 
     return shell(
@@ -473,7 +659,7 @@
         </div>
       </div>
 
-      <div class="chart-list">${rows}</div>
+      ${grid}
     `,
       "home"
     );
@@ -491,7 +677,9 @@
       );
     }
 
-    const [c1] = coverColors(song);
+    const [c1, c2] = coverColors(song);
+    const cover = (song.coverUrl || "").trim();
+    const primary = preferListen(song);
     const listenBtns = LINK_PLATFORMS.filter((p) => song.links && song.links[p])
       .map((p) => {
         const m = window.PLATFORM_META[p];
@@ -507,14 +695,16 @@
       })
       .join("");
 
-    const related = publishedSongs()
-      .filter(
-        (s) =>
-          s.id !== song.id &&
-          (s.artist === song.artist ||
-            (s.languages || []).some((l) => (song.languages || []).includes(l)))
-      )
-      .slice(0, 5);
+    const relatedPool = publishedSongs().filter(
+      (s) =>
+        s.id !== song.id &&
+        (s.artist === song.artist ||
+          (s.languages || []).some((l) => (song.languages || []).includes(l)))
+    );
+    const related = relatedPool
+      .filter((s) => s.artist === song.artist)
+      .concat(relatedPool.filter((s) => s.artist !== song.artist))
+      .slice(0, 8);
 
     const voteUseful = (state.votes[song.id] || {}).useful || 0;
     const voteBad = (state.votes[song.id] || {}).bad || 0;
@@ -522,9 +712,16 @@
     return shell(
       `
       <a class="back-link" href="#/">${iconSvg("back")} 返回目錄</a>
-      <section class="detail-hero" style="--hero-glow:${esc(c1)}55">
-        ${coverHtml(song, "cover-xl")}
-        <div class="detail-info">
+      <section class="poster detail-poster" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)};--hero-glow:${esc(c1)}55">
+        <div class="hero-visual">
+          ${
+            cover
+              ? `<img class="hero-bg-img" src="${esc(cover)}" alt="" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()"/>`
+              : ""
+          }
+        </div>
+        <div class="hero-scrim" aria-hidden="true"></div>
+        <div class="hero-content">
           <div class="hero-meta-row">${langChips(song.languages)} ${(song.themes || [])
             .map((t) => `<span class="chip">${esc(t)}</span>`)
             .join("")}</div>
@@ -532,12 +729,21 @@
           <p class="sub"><strong>${esc(song.artist)}</strong> · 來源：${esc(
             song.source === "auto" ? "自動收錄" : song.source === "creator" ? "創作者上架" : "混合"
           )}</p>
-          <p class="blurb">${esc(song.blurb || "")}</p>
-          <div class="listen-row">${listenBtns || `<div class="alert alert-warn">暫時未有平台連結。</div>`}</div>
-          <div class="vote-row">
-            <button class="btn btn-sm" id="vote-useful">有用（${voteUseful}）</button>
-            <button class="btn btn-sm" id="vote-bad">連結唔啱（${voteBad}）</button>
-          </div>
+          ${
+            primary
+              ? `<div class="hero-actions"><a class="btn btn-play" href="${esc(primary.url)}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${esc(primary.platform)}">${iconSvg("play")} 喺 ${esc(window.PLATFORM_META[primary.platform].label)} 聽</a></div>`
+              : ""
+          }
+        </div>
+      </section>
+
+      <section class="panel glass-panel">
+        <h2>出站收聽</h2>
+        ${song.blurb ? `<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(song.blurb)}</p>` : ""}
+        <div class="listen-row">${listenBtns || `<div class="alert alert-warn">暫時未有平台連結。</div>`}</div>
+        <div class="vote-row">
+          <button class="btn btn-sm" id="vote-useful">有用（${voteUseful}）</button>
+          <button class="btn btn-sm" id="vote-bad">連結唔啱（${voteBad}）</button>
         </div>
       </section>
 
@@ -566,18 +772,8 @@
 
       ${
         related.length
-          ? `<section class="panel"><h2>相關推薦</h2><div class="related-grid">${related
-              .map(
-                (s) => `
-            <a class="related-item" href="#/song/${esc(s.id)}">
-              ${coverHtml(s, "cover-tiny")}
-              <div>
-                <strong>${esc(s.title)}</strong>
-                <div class="muted" style="font-size:13px">${esc(s.artist)}</div>
-              </div>
-              <div class="platform-icons">${platformDots(s)}</div>
-            </a>`
-              )
+          ? `<section class="related-section"><div class="section-head"><h2>相關推薦</h2></div><div class="related-grid" role="list">${related
+              .map((s, i) => songCardHtml(s, i, "", { flow: true, showRank: false }))
               .join("")}</div></section>`
           : ""
       }
@@ -707,23 +903,13 @@
         if (key === "lang" || key === "ministry") setHomeQuery({ [key]: val });
       });
     });
-    document.querySelectorAll(".chart-row").forEach((card) => {
-      const go = () => navigate("song/" + card.dataset.id);
-      card.addEventListener("click", (e) => {
-        if (e.target.closest("a.play-out")) return;
-        go();
-      });
-      card.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
-        }
-      });
-    });
+    if (homeGrid && document.getElementById("chart-grid")) {
+      mountVirtualGrid(homeGrid.songs, homeGrid.chart);
+    }
   }
 
   function bindSong(id) {
-    document.querySelectorAll("a.listen-btn").forEach((a) => {
+    document.querySelectorAll("a[data-click]").forEach((a) => {
       a.addEventListener("click", () => {
         state.clicks[id] = (state.clicks[id] || 0) + 1;
         saveState(state);
@@ -806,6 +992,10 @@
   }
 
   function render() {
+    teardownVirtual();
+    const searchEl = document.getElementById("search-input");
+    const restoreSearch = !!(searchEl && document.activeElement === searchEl);
+    const caret = restoreSearch ? searchEl.selectionStart : null;
     const r = route();
     const app = document.getElementById("app");
     if (r.name === "home") {
@@ -828,6 +1018,14 @@
           : r.name === "song"
             ? "詩歌詳情 — 詩歌目錄"
             : "詩歌目錄 — 華語敬拜發現平台";
+    if (restoreSearch) {
+      const input = document.getElementById("search-input");
+      if (input) {
+        input.focus();
+        const pos = caret == null ? input.value.length : caret;
+        try { input.setSelectionRange(pos, pos); } catch (_) {}
+      }
+    }
   }
 
   window.addEventListener("hashchange", render);
