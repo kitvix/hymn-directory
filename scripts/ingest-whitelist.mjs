@@ -1,7 +1,11 @@
 /**
- * Ingest songs from official YouTube channel whitelist into data.js.
+ * Ingest ALL song videos from official YouTube channel whitelist into data.js.
  * Usage: node scripts/ingest-whitelist.mjs
  * Requires YOUTUBE_API_KEY in env. Never logs the key.
+ *
+ * Default: paginate each channel's uploads playlist until exhausted
+ * (no per-channel / total caps). Filters out livestreams, sermons, etc.
+ * On quota/API failure mid-way, writes whatever was collected so far.
  *
  * Also writes resolved channelIds back into data/whitelist.json
  * and regenerates window.HYMN_SEED in data.js (keeps PLATFORM_META etc.).
@@ -15,6 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const whitelistPath = path.join(root, "data", "whitelist.json");
 const dataPath = path.join(root, "data.js");
+const liveStatsPath = path.join(root, "live-stats.json");
 
 const key = process.env.YOUTUBE_API_KEY;
 if (!key) {
@@ -22,12 +27,8 @@ if (!key) {
   process.exit(1);
 }
 
-const PER_CHANNEL_FETCH = 40; // playlist items to scan per channel
-const PER_CHANNEL_KEEP = 12; // max songs kept per channel after mix
-const TOTAL_CAP = 80;
-
 const SKIP_RE =
-  /直播|證道|講道|預告|幕後|花絮|訪談|訪問|宣傳|廣告|回顧|崇拜全程|聚會全程|主日信息|報名|課程|事奉學校|School\s+of|trailer|behind\s*the\s*scenes|\bQ\s*&\s*A\b|podcast|播客|新聞|news\b|訂閱|subscribe\s+now|開幕|研討會/i;
+  /直播|證道|講道|預告|幕後|花絮|訪談|訪問|宣傳|廣告|回顧|崇拜全程|聚會全程|主日信息|報名|課程|事奉學校|School\s+of|trailer|behind\s*the\s*scenes|\bQ\s*&\s*A\b|podcast|播客|新聞|news\b|訂閱|subscribe\s+now|開幕|研討會|短片廣告/i;
 
 const COVER_PALETTE = [
   ["#7c3aed", "#db2777"],
@@ -42,6 +43,11 @@ const COVER_PALETTE = [
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function isQuotaError(err) {
+  const msg = String((err && err.message) || err || "");
+  return /quota|dailyLimitExceeded|rateLimitExceeded|userRateLimitExceeded|403/i.test(msg);
 }
 
 async function ytGet(pathname, params) {
@@ -61,7 +67,10 @@ async function ytGet(pathname, params) {
     const reason =
       (body && body.error && (body.error.message || body.error.status)) ||
       `HTTP ${res.status}`;
-    throw new Error(`YouTube ${pathname}: ${String(reason).slice(0, 220)}`);
+    const err = new Error(`YouTube ${pathname}: ${String(reason).slice(0, 280)}`);
+    err.status = res.status;
+    err.body = body;
+    throw err;
   }
   return body;
 }
@@ -69,7 +78,6 @@ async function ytGet(pathname, params) {
 function cleanTitle(raw) {
   const original = String(raw || "").trim();
   let t = original;
-  // Prefer song name inside 【…】 (common for SOP / HKACM / Joshua)
   const bracket = t.match(/【([^】]+)】/);
   if (bracket) {
     t = bracket[1].trim();
@@ -87,7 +95,6 @@ function cleanTitle(raw) {
     ""
   );
   t = t.replace(/\s{2,}/g, " ").trim();
-  // If cleaning wiped the title, fall back
   if (!t || t.length < 2) t = original.split(/[|｜]/)[0].trim();
   return t;
 }
@@ -120,8 +127,28 @@ function extractYtId(url) {
   return m ? m[1] : "";
 }
 
+function bestThumb(videoId, thumbnails) {
+  const t = thumbnails || {};
+  return (
+    (t.maxres && t.maxres.url) ||
+    (t.standard && t.standard.url) ||
+    (t.high && t.high.url) ||
+    `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+  );
+}
+
 async function resolveChannel(ch) {
-  // Prefer forHandle (without @)
+  if (ch.channelId) {
+    try {
+      const body = await ytGet("channels", {
+        part: "id,snippet,contentDetails",
+        id: ch.channelId
+      });
+      if (body.items && body.items[0]) return body.items[0];
+    } catch (e) {
+      console.warn(`  id lookup failed for ${ch.channelId}: ${e.message}`);
+    }
+  }
   const handle = String(ch.handle || "").replace(/^@/, "");
   try {
     const body = await ytGet("channels", {
@@ -132,7 +159,6 @@ async function resolveChannel(ch) {
   } catch (e) {
     console.warn(`  forHandle failed for @${handle}: ${e.message}`);
   }
-  // Fallback: search
   try {
     const body = await ytGet("search", {
       part: "snippet",
@@ -161,16 +187,19 @@ async function resolveChannel(ch) {
   return null;
 }
 
-async function fetchUploads(uploadsPlaylistId, maxItems) {
+/** Paginate entire uploads playlist until exhausted (or quota). */
+async function fetchUploadsAll(uploadsPlaylistId) {
   const items = [];
   let pageToken = "";
-  while (items.length < maxItems) {
+  let pages = 0;
+  for (;;) {
     const body = await ytGet("playlistItems", {
       part: "snippet,contentDetails",
       playlistId: uploadsPlaylistId,
-      maxResults: Math.min(50, maxItems - items.length),
+      maxResults: 50,
       pageToken: pageToken || undefined
     });
+    pages++;
     for (const it of body.items || []) {
       const vid =
         (it.contentDetails && it.contentDetails.videoId) ||
@@ -188,9 +217,9 @@ async function fetchUploads(uploadsPlaylistId, maxItems) {
     }
     pageToken = body.nextPageToken || "";
     if (!pageToken) break;
-    await sleep(50);
+    await sleep(40);
   }
-  return items;
+  return { items, pages };
 }
 
 async function fetchVideoStats(ids) {
@@ -212,12 +241,11 @@ async function fetchVideoStats(ids) {
         thumbnails: (it.snippet && it.snippet.thumbnails) || {}
       };
     }
-    await sleep(50);
+    await sleep(40);
   }
   return out;
 }
 
-/** Parse ISO 8601 duration; skip very short (<45s) and very long (>20min) unless labeled lyric/MV. */
 function durationSeconds(iso) {
   if (!iso) return 0;
   const m = String(iso).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -232,27 +260,11 @@ function isLikelySong(title, meta) {
   const desc = (meta && meta.description) || "";
   if (/^#{0,2}\s*(直播|證道|講道)/m.test(desc.slice(0, 200))) return false;
   const sec = durationSeconds(meta && meta.duration);
-  if (sec > 0 && sec < 45) return false; // shorts / clips
+  if (sec > 0 && sec < 45) return false;
   if (sec > 25 * 60 && !/歌詞|lyric|mv|official|敬拜|詩歌|讚美/i.test(title)) {
-    return false; // long non-music
+    return false;
   }
   return true;
-}
-
-function pickMix(candidates, keep) {
-  // candidates: {videoId, title, publishedAt, viewCount, ...}
-  const byViews = candidates.slice().sort((a, b) => b.viewCount - a.viewCount);
-  const byNew = candidates.slice().sort(
-    (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)
-  );
-  const half = Math.ceil(keep / 2);
-  const chosen = new Map();
-  for (const c of byNew.slice(0, half)) chosen.set(c.videoId, c);
-  for (const c of byViews) {
-    if (chosen.size >= keep) break;
-    chosen.set(c.videoId, c);
-  }
-  return [...chosen.values()];
 }
 
 function loadOldLinksByVideoId() {
@@ -313,17 +325,91 @@ ${signalsEntries}
   }${comma}`;
 }
 
+function writeOutputs(finalSongs, whitelist) {
+  finalSongs.sort(
+    (a, b) => (b.signals.youtube.total || 0) - (a.signals.youtube.total || 0)
+  );
+
+  fs.writeFileSync(whitelistPath, JSON.stringify(whitelist, null, 2) + "\n", "utf8");
+
+  const dataSrc = fs.readFileSync(dataPath, "utf8");
+  const platformMetaBlock = `window.PLATFORM_META = {
+  youtube_music: { key: "youtube_music", label: "YouTube Music", short: "YT Music", className: "ytm" },
+  youtube: { key: "youtube", label: "YouTube", short: "YT", className: "yt" },
+  apple_music: { key: "apple_music", label: "Apple Music", short: "Apple", className: "apple" },
+  spotify: { key: "spotify", label: "Spotify", short: "Spotify", className: "spotify" },
+  kkbox: { key: "kkbox", label: "KKBOX", short: "KKBOX", className: "kkbox" }
+};`;
+
+  const seedBody = finalSongs
+    .map((s, i) => formatSongJs(s, i === finalSongs.length - 1))
+    .join("\n");
+  const seedBlock = `window.HYMN_SEED = [\n${seedBody}\n];`;
+
+  let next = dataSrc;
+  const seedStart = next.indexOf("window.HYMN_SEED");
+  const metaStart = next.indexOf("window.PLATFORM_META");
+  if (seedStart < 0 || metaStart < 0) {
+    console.error("ingest-whitelist: cannot find HYMN_SEED / PLATFORM_META markers");
+    process.exit(1);
+  }
+  const adminStart = next.indexOf("window.ADMIN_DEMO_KEY");
+  const afterMeta = adminStart >= 0 ? adminStart : next.length;
+  next =
+    next.slice(0, seedStart) +
+    seedBlock +
+    "\n\n" +
+    platformMetaBlock +
+    "\n\n" +
+    next.slice(afterMeta);
+  fs.writeFileSync(dataPath, next, "utf8");
+
+  // live-stats.json from ingested songs
+  const videos = {};
+  for (const s of finalSongs) {
+    const vid = s.videoId || extractYtId(s.links && s.links.youtube);
+    if (!vid) continue;
+    videos[vid] = {
+      viewCount: Number((s.signals && s.signals.youtube && s.signals.youtube.total) || 0),
+      publishedAt: (s.released_at && s.released_at.youtube) || "",
+      title: s.title || "",
+      channelTitle: s.artist || ""
+    };
+  }
+  const payload = {
+    fetchedAt: new Date().toISOString(),
+    source: "youtube-data-api",
+    count: Object.keys(videos).length,
+    videos
+  };
+  fs.writeFileSync(liveStatsPath, JSON.stringify(payload, null, 2) + "\n", "utf8");
+}
+
 const whitelist = JSON.parse(fs.readFileSync(whitelistPath, "utf8"));
 const oldLinks = loadOldLinksByVideoId();
-const report = { channels: [], failures: [], total: 0 };
+const report = { channels: [], failures: [], total: 0, partial: false, stoppedAt: null };
 
 const allSongs = [];
 let colorIdx = 0;
 const nowIso = new Date().toISOString();
+let abortQuota = false;
 
-console.log("ingest-whitelist: resolving", whitelist.channels.length, "channels…");
+console.log("ingest-whitelist: full-channel ingest for", whitelist.channels.length, "channels…");
 
 for (const ch of whitelist.channels) {
+  if (abortQuota) {
+    report.channels.push({
+      ministry: ch.ministry,
+      handle: ch.handle,
+      channelId: ch.channelId || null,
+      fetched: 0,
+      kept: 0,
+      skipped: 0,
+      error: "skipped_after_quota"
+    });
+    continue;
+  }
+
   const row = {
     ministry: ch.ministry,
     handle: ch.handle,
@@ -331,8 +417,10 @@ for (const ch of whitelist.channels) {
     fetched: 0,
     kept: 0,
     skipped: 0,
+    pages: 0,
     error: null
   };
+
   try {
     const resolved = await resolveChannel(ch);
     if (!resolved) {
@@ -356,11 +444,15 @@ for (const ch of whitelist.channels) {
       console.warn(`FAIL @${ch.handle}: no uploads playlist`);
       continue;
     }
-    console.log(`OK @${ch.handle} → ${channelId}`);
-    const uploads = await fetchUploads(uploadsId, PER_CHANNEL_FETCH);
+    console.log(`OK @${ch.handle} → ${channelId} (full uploads)`);
+
+    const { items: uploads, pages } = await fetchUploadsAll(uploadsId);
     row.fetched = uploads.length;
+    row.pages = pages;
+    console.log(`  playlist items: ${uploads.length} (${pages} pages)`);
+
     const stats = await fetchVideoStats(uploads.map((u) => u.videoId));
-    const candidates = [];
+    const keptSongs = [];
     for (const u of uploads) {
       const meta = stats[u.videoId];
       if (!meta) {
@@ -372,49 +464,33 @@ for (const ch of whitelist.channels) {
         row.skipped++;
         continue;
       }
-      candidates.push({
-        videoId: u.videoId,
-        title,
-        publishedAt: meta.publishedAt || u.publishedAt,
-        viewCount: meta.viewCount,
-        thumbnails: meta.thumbnails || u.thumbnails,
-        channelTitle: meta.channelTitle
-      });
-    }
-    const picked = pickMix(candidates, PER_CHANNEL_KEEP);
-    row.kept = picked.length;
-    for (const p of picked) {
-      const thumb =
-        (p.thumbnails.maxres && p.thumbnails.maxres.url) ||
-        (p.thumbnails.standard && p.thumbnails.standard.url) ||
-        (p.thumbnails.high && p.thumbnails.high.url) ||
-        `https://i.ytimg.com/vi/${p.videoId}/hqdefault.jpg`;
-      const prev = oldLinks[p.videoId] || {};
+      const thumb = bestThumb(u.videoId, meta.thumbnails || u.thumbnails);
+      const prev = oldLinks[u.videoId] || {};
       const links = {
-        youtube: `https://www.youtube.com/watch?v=${p.videoId}`,
-        youtube_music: `https://music.youtube.com/watch?v=${p.videoId}`
+        youtube: `https://www.youtube.com/watch?v=${u.videoId}`,
+        youtube_music: `https://music.youtube.com/watch?v=${u.videoId}`
       };
       if (prev.apple_music) links.apple_music = prev.apple_music;
       if (prev.spotify) links.spotify = prev.spotify;
       if (prev.kkbox) links.kkbox = prev.kkbox;
 
-      const views = p.viewCount || 0;
+      const views = meta.viewCount || 0;
       const song = {
-        id: "yt-" + p.videoId,
-        title: cleanTitle(p.title),
+        id: "yt-" + u.videoId,
+        title: cleanTitle(title),
         artist: ch.ministry,
         languages: ch.languages.slice(),
-        themes: guessThemes(p.title),
+        themes: guessThemes(title),
         coverColor: COVER_PALETTE[colorIdx++ % COVER_PALETTE.length],
         coverUrl: thumb,
         links,
         source: "auto",
         status: "published",
         channelId,
-        videoId: p.videoId,
+        videoId: u.videoId,
         blurb: `${ch.ministry} 官方頻道自動收錄。`,
         created_at: nowIso,
-        released_at: { youtube: p.publishedAt },
+        released_at: { youtube: meta.publishedAt || u.publishedAt },
         signals: {
           youtube: {
             total: views,
@@ -424,92 +500,33 @@ for (const ch of whitelist.channels) {
           }
         }
       };
+      keptSongs.push(song);
       allSongs.push(song);
     }
+    row.kept = keptSongs.length;
+    console.log(`  kept ${row.kept}, skipped ${row.skipped}`);
   } catch (e) {
-    row.error = String(e.message || e).slice(0, 200);
+    row.error = String(e.message || e).slice(0, 220);
     report.failures.push(`@${ch.handle}: ${row.error}`);
     console.warn(`FAIL @${ch.handle}:`, row.error);
+    if (isQuotaError(e)) {
+      abortQuota = true;
+      report.partial = true;
+      report.stoppedAt = ch.handle;
+      console.warn("ingest-whitelist: quota/rate limit hit — saving partial results");
+    }
   }
   report.channels.push(row);
-  await sleep(100);
+  await sleep(80);
 }
 
-// Cap total: prefer higher views overall while keeping per-channel representation
-let finalSongs = allSongs;
-if (allSongs.length > TOTAL_CAP) {
-  // Keep at least 4 per channel if available, then fill by views
-  const byChannel = new Map();
-  for (const s of allSongs) {
-    const k = s.artist;
-    if (!byChannel.has(k)) byChannel.set(k, []);
-    byChannel.get(k).push(s);
-  }
-  const kept = new Map();
-  for (const [, list] of byChannel) {
-    const sorted = list.slice().sort(
-      (a, b) => (b.signals.youtube.total || 0) - (a.signals.youtube.total || 0)
-    );
-    for (const s of sorted.slice(0, 4)) kept.set(s.id, s);
-  }
-  const rest = allSongs
-    .filter((s) => !kept.has(s.id))
-    .sort((a, b) => (b.signals.youtube.total || 0) - (a.signals.youtube.total || 0));
-  for (const s of rest) {
-    if (kept.size >= TOTAL_CAP) break;
-    kept.set(s.id, s);
-  }
-  finalSongs = [...kept.values()];
-}
+report.total = allSongs.length;
+writeOutputs(allSongs, whitelist);
 
-// Sort: views desc for stable data.js
-finalSongs.sort(
-  (a, b) => (b.signals.youtube.total || 0) - (a.signals.youtube.total || 0)
-);
-report.total = finalSongs.length;
-
-// Write channelIds back
-fs.writeFileSync(whitelistPath, JSON.stringify(whitelist, null, 2) + "\n", "utf8");
-
-// Rebuild data.js: replace HYMN_SEED array, update PLATFORM_META
-const dataSrc = fs.readFileSync(dataPath, "utf8");
-const platformMetaBlock = `window.PLATFORM_META = {
-  youtube_music: { key: "youtube_music", label: "YouTube Music", short: "YT Music", className: "ytm" },
-  youtube: { key: "youtube", label: "YouTube", short: "YT", className: "yt" },
-  apple_music: { key: "apple_music", label: "Apple Music", short: "Apple", className: "apple" },
-  spotify: { key: "spotify", label: "Spotify", short: "Spotify", className: "spotify" },
-  kkbox: { key: "kkbox", label: "KKBOX", short: "KKBOX", className: "kkbox" }
-};`;
-
-const seedBody = finalSongs
-  .map((s, i) => formatSongJs(s, i === finalSongs.length - 1))
-  .join("\n");
-
-const seedBlock = `window.HYMN_SEED = [\n${seedBody}\n];`;
-
-let next = dataSrc;
-const seedStart = next.indexOf("window.HYMN_SEED");
-const metaStart = next.indexOf("window.PLATFORM_META");
-if (seedStart < 0 || metaStart < 0) {
-  console.error("ingest-whitelist: cannot find HYMN_SEED / PLATFORM_META markers");
-  process.exit(1);
-}
-const adminStart = next.indexOf("window.ADMIN_DEMO_KEY");
-const afterMeta = adminStart >= 0 ? adminStart : next.length;
-next =
-  next.slice(0, seedStart) +
-  seedBlock +
-  "\n\n" +
-  platformMetaBlock +
-  "\n\n" +
-  next.slice(afterMeta);
-
-fs.writeFileSync(dataPath, next, "utf8");
-
-console.log("\ningest-whitelist: summary");
+console.log("\ningest-whitelist: summary" + (report.partial ? " (PARTIAL — quota)" : ""));
 for (const c of report.channels) {
   console.log(
-    `  ${c.ministry} (@${c.handle}) id=${c.channelId || "—"} fetched=${c.fetched} kept=${c.kept} skipped=${c.skipped}${c.error ? " ERR=" + c.error : ""}`
+    `  ${c.ministry} (@${c.handle}) id=${c.channelId || "—"} fetched=${c.fetched} kept=${c.kept} skipped=${c.skipped}${c.pages != null ? " pages=" + c.pages : ""}${c.error ? " ERR=" + c.error : ""}`
   );
 }
 console.log("  TOTAL published:", report.total);
@@ -517,4 +534,4 @@ if (report.failures.length) {
   console.log("  failures:");
   for (const f of report.failures) console.log("   -", f);
 }
-console.log("ingest-whitelist: wrote data.js + data/whitelist.json");
+console.log("ingest-whitelist: wrote data.js + live-stats.json + data/whitelist.json");

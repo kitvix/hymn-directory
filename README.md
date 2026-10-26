@@ -12,7 +12,6 @@
 |------|----------|
 | **最熱** | YouTube `viewCount`（總觀看）由高至低 |
 | **新歌** | YouTube `publishedAt`（上傳日）由新至舊 |
-| **日榜／周榜／月榜** | Data API **冇**時段增量；**暫以總觀看排序**（同最熱），UI 會標明「暫代」。要真日／周／月需自行存歷史快照 |
 
 每首歌出站同時提供：
 
@@ -41,11 +40,11 @@
 
 ```bash
 export YOUTUBE_API_KEY="你的key"   # 唔好 commit
-node scripts/ingest-whitelist.mjs  # 掃白名單 uploads → 重寫 data.js（約 40–80 首）
-node scripts/sync-youtube.mjs      # 刷新 live-stats.json + seed 觀看／上傳日
+node scripts/ingest-whitelist.mjs  # 預設全量：分頁掃晒各頻道 uploads → 重寫 data.js + live-stats.json
+node scripts/sync-youtube.mjs      # 可選：再刷新觀看／上傳日
 ```
 
-Ingest 會：解析 `forHandle` → uploads playlist → 過濾明顯非歌曲（直播／證道／預告等）→ 每頻道取新歌＋高觀看混合 → 寫入 `published` + `source: "auto"`，並為每首加 `youtube`＋`youtube_music` 連結。若舊 seed 已有同一 `videoId` 的 Apple／Spotify／KKBOX 連結會保留。
+**預設全量抓取**：解析 channel → uploads playlist → `playlistItems.list` 分頁至盡 → `videos.list` 每批 50 ids → 過濾明顯非歌曲（直播／證道／預告／幕後／花絮等；過短／過長非歌詞類）→ **保留該頻道全部合格詩歌**（無每頻道／總數上限）→ `published` + `source: "auto"`，每首同時有 `youtube`＋`youtube_music`。封面用 `maxres`／`hqdefault`（16:9）。若舊 seed 已有同一 `videoId` 的 Apple／Spotify／KKBOX 連結會保留。配額不足會寫入已抓到嘅部分結果。
 
 ## YouTube API（Vercel）
 
@@ -94,13 +93,13 @@ vercel
 
 ## UI
 
-深色音樂平台風格：側欄／底部導航、精選 Hero、封面優先 `coverUrl`（YouTube thumbnail）、時段 tab（日／周／月／新歌／最熱）、榜單列含排名／封面／平台 icon／出站播放掣（優先 YouTube Music）。詳情頁同時顯示 YouTube Music 同 YouTube 出站掣。
+深色音樂平台風格：側欄／底部導航、精選 Hero、封面優先 `coverUrl`（YouTube thumbnail，**16:9** `object-fit: cover`）、榜單 tab 只得 **新歌／最熱**（日／周／月已移除）、榜單列含排名／封面／平台 icon／出站播放掣（優先 YouTube Music）。詳情頁同時顯示 YouTube Music 同 YouTube 出站掣。
 
 ## 功能一覽
 
 | 頁面 | 內容 |
 |------|------|
-| 首頁 | YouTube 榜；日／周／月／新歌／最熱；搜尋；語言／機構篩選 |
+| 首頁 | YouTube 榜；新歌／最熱；搜尋；語言／機構篩選 |
 | 詳情 | 大封面；YouTube Music＋YouTube（及其他平台）出站；觀看／上傳日；投票；相關推薦 |
 | 上架 | **暫停開放**（`#/submit` 只顯示暫停頁） |
 | 管理 | 密碼閘；審核既有 pending；通過／退回；重設示範數據 |
@@ -121,5 +120,5 @@ vercel
 ## 注意
 
 - Seed 只收**機構官方**白名單頻道；唔抓私人帳號。  
-- Storage key：`hymn_directory_v8`（硬刷新或 Admin「重設」先見到新歌單）。  
+- Storage key：`hymn_directory_v10`（硬刷新或 Admin「重設」先見到新歌單）。日／周／月榜已移除；封面 16:9。  
 - URL 舊參數 `platform=` 可忽略；`chart=最新` 仍當 `新歌`。  

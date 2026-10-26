@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v8";
+  const STORAGE_KEY = "hymn_directory_v10";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
   /** Outbound listen order: YouTube Music first, then YouTube, then others */
@@ -32,10 +32,12 @@
     return out;
   }
 
-  /** Normalize chart query: legacy 「最新」 → 「新歌」; default 最熱. */
+  /** Normalize chart query: legacy 最新→新歌; 日/周/月→最熱; default 最熱. */
   function normalizeChart(chart) {
     if (chart === "最新") return "新歌";
-    return chart || "最熱";
+    if (chart === "日榜" || chart === "周榜" || chart === "月榜") return "最熱";
+    if (chart === "新歌" || chart === "最熱") return chart;
+    return "最熱";
   }
 
   const CHART_PLATFORM = "youtube";
@@ -75,10 +77,6 @@
     if (!(song.links && song.links.youtube)) return false;
     if (chart === "新歌") return !!youtubePublishedAt(song);
     return youtubeViews(song) > 0;
-  }
-
-  function isPeriodChart(chart) {
-    return chart === "日榜" || chart === "周榜" || chart === "月榜";
   }
 
   function applyLiveStatsToSongs(videos) {
@@ -308,7 +306,7 @@
         (a, b) => new Date(youtubePublishedAt(b)) - new Date(youtubePublishedAt(a))
       );
     }
-    // 最熱 + 日／周／月（暫代）：總觀看
+    // 最熱：總觀看
     return arr.sort((a, b) => youtubeViews(b) - youtubeViews(a));
   }
 
@@ -317,9 +315,7 @@
       const iso = youtubePublishedAt(song);
       return iso ? new Date(iso).toLocaleDateString("zh-HK") : "";
     }
-    const n = youtubeViews(song);
-    if (isPeriodChart(chart)) return "暫代 · " + formatPlays(n);
-    return "觀看 " + formatPlays(n);
+    return "觀看 " + formatPlays(youtubeViews(song));
   }
 
   function preferListen(song) {
@@ -359,16 +355,12 @@
     const ministries = [...new Set(publishedSongs().map((s) => s.artist))].sort();
     const featured = list[0] || null;
 
-    const tabs = ["日榜", "周榜", "月榜", "新歌", "最熱"]
+    const tabs = ["新歌", "最熱"]
       .map(
         (t) =>
           `<button class="tab ${t === chart ? "active" : ""}" data-chart="${esc(t)}">${esc(t)}</button>`
       )
       .join("");
-
-    const periodNote = isPeriodChart(chart)
-      ? `<div class="alert alert-info" style="margin-bottom:14px">日／周／月榜需要歷史觀看快照先計增量；<strong>暫以總觀看排序</strong>（同最熱）。最熱／新歌已用 YouTube 真實數據。</div>`
-      : "";
 
     const liveNote =
       liveStatsMeta.status === "ok"
@@ -440,10 +432,8 @@
         ${liveNote}
       </div>
 
-      ${periodNote}
-
       <div class="toolbar">
-        <div class="tabs" id="chart-tabs" aria-label="榜單時段">${tabs}</div>
+        <div class="tabs" id="chart-tabs" aria-label="榜單">${tabs}</div>
         <div class="toolbar-row">
           <div class="search-box">
             <span class="icon">${iconSvg("search")}</span>
