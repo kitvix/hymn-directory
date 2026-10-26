@@ -1,7 +1,9 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v7";
+  const STORAGE_KEY = "hymn_directory_v8";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
+  /** Outbound listen order: YouTube Music first, then YouTube, then others */
+  const LINK_PLATFORMS = ["youtube_music", "youtube", "apple_music", "spotify", "kkbox"];
 
   function loadState() {
     try {
@@ -43,7 +45,7 @@
   function extractYtId(url) {
     if (!url) return "";
     const m = String(url).match(
-      /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/
+      /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|music\.youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/
     );
     return m ? m[1] : "";
   }
@@ -113,17 +115,25 @@
     }
 
     try {
-      let data = null;
+      let videos = null;
       let source = "";
       try {
-        data = await tryFetch("/api/youtube-stats?ids=" + encodeURIComponent(ids.join(",")));
+        videos = {};
+        for (let i = 0; i < ids.length; i += 50) {
+          const chunk = ids.slice(i, i + 50);
+          const data = await tryFetch(
+            "/api/youtube-stats?ids=" + encodeURIComponent(chunk.join(","))
+          );
+          if (data && data.videos) Object.assign(videos, data.videos);
+        }
         source = "api";
       } catch (_) {
-        data = await tryFetch("live-stats.json");
+        const data = await tryFetch("live-stats.json");
+        videos = data && data.videos;
         source = "live-stats.json";
       }
-      if (data && data.videos && typeof data.videos === "object") {
-        liveStats = data.videos;
+      if (videos && typeof videos === "object" && Object.keys(videos).length) {
+        liveStats = videos;
         applyLiveStatsToSongs(liveStats);
         saveState(state);
         liveStatsMeta = {
@@ -201,7 +211,7 @@
   function ytThumbFromUrl(url) {
     if (!url) return "";
     const m = String(url).match(
-      /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/
+      /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|music\.youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/
     );
     return m ? `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` : "";
   }
@@ -236,12 +246,13 @@
 
   function platformIcon(p, classExtra) {
     const m = window.PLATFORM_META[p];
-    const iconName = p === "apple_music" ? "apple" : p;
+    if (!m) return "";
+    const iconName = p === "apple_music" ? "apple" : p === "youtube_music" ? "youtube" : p;
     return `<span class="p-icon ${m.className} ${classExtra || ""}" title="${esc(m.label)}">${iconSvg(iconName)}</span>`;
   }
 
   function platformDots(song) {
-    return PLATFORMS.filter((p) => song.links && song.links[p])
+    return LINK_PLATFORMS.filter((p) => song.links && song.links[p])
       .map((p) => platformIcon(p))
       .join("");
   }
@@ -253,7 +264,7 @@
   }
 
   function firstListenUrl(song) {
-    for (const p of PLATFORMS) {
+    for (const p of LINK_PLATFORMS) {
       if (song.links && song.links[p]) return { url: song.links[p], platform: p };
     }
     return null;
@@ -278,7 +289,7 @@
           </div>
           <main class="main">${content}</main>
           <footer class="footer">
-            V1 原型 · 榜單以 YouTube 為準 · Apple／Spotify／KKBOX 只作出站連結 · 自助上架暫停 · 唔託管音檔 ·
+            V1 原型 · 榜單以 YouTube 頻道為準 · 出站含 YouTube Music／YouTube · Apple／Spotify／KKBOX 可選 · 自助上架暫停 · 唔託管音檔 ·
             <a href="#/admin">管理員</a>
           </footer>
         </div>
@@ -312,6 +323,9 @@
   }
 
   function preferListen(song) {
+    if (song.links && song.links.youtube_music) {
+      return { url: song.links.youtube_music, platform: "youtube_music" };
+    }
     if (song.links && song.links.youtube) {
       return { url: song.links.youtube, platform: "youtube" };
     }
@@ -471,11 +485,12 @@
     }
 
     const [c1] = coverColors(song);
-    const listenBtns = PLATFORMS.filter((p) => song.links && song.links[p])
+    const listenBtns = LINK_PLATFORMS.filter((p) => song.links && song.links[p])
       .map((p) => {
         const m = window.PLATFORM_META[p];
+        if (!m) return "";
         const url = song.links[p];
-        const iconName = p === "apple_music" ? "apple" : p;
+        const iconName = p === "apple_music" ? "apple" : p === "youtube_music" ? "youtube" : p;
         return `
           <a class="listen-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${p}">
             <span class="logo ${m.className}">${iconSvg(iconName)}</span>
@@ -539,7 +554,7 @@
             <div class="prop"><span class="k">上傳日</span><span class="v mono">${esc(pub ? new Date(pub).toLocaleDateString("zh-HK") : "—")}</span></div>`;
           })()}
         </div>
-        <p class="muted" style="font-size:13px;margin-top:10px">Apple Music／Spotify／KKBOX 只作出站聽歌連結，唔計入榜單。</p>
+        <p class="muted" style="font-size:13px;margin-top:10px">YouTube Music／YouTube 均可出站；Apple Music／Spotify／KKBOX 只作出站聽歌連結，唔計入榜單。</p>
       </section>
 
       ${
@@ -605,7 +620,7 @@
     const pendingHtml = pending.length
       ? pending
           .map((s) => {
-            const links = PLATFORMS.filter((p) => s.links && s.links[p])
+            const links = LINK_PLATFORMS.filter((p) => s.links && s.links[p])
               .map((p) => window.PLATFORM_META[p].short)
               .join(" · ");
             return `

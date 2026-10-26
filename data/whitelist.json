@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "note": "Official YouTube channels only. Exclude streamofpraiseresources, HeavenlyMelody, ROLCCmedia.",
+  "channels": [
+    {
+      "id": "streamofpraise",
+      "ministry": "讚美之泉",
+      "handle": "streamofpraise",
+      "url": "https://www.youtube.com/@streamofpraise",
+      "languages": [
+        "普通話"
+      ],
+      "channelId": "UC00EceQGGCMucNvwOS-jQ7A"
+    },
+    {
+      "id": "joshuabandasia",
+      "ministry": "約書亞樂團",
+      "handle": "joshuabandasia",
+      "url": "https://www.youtube.com/@joshuabandasia",
+      "languages": [
+        "普通話"
+      ],
+      "channelId": "UC93m2yLo9G4-ZdFMgrdS2LA"
+    },
+    {
+      "id": "AmazingGraceWorship",
+      "ministry": "基恩敬拜",
+      "handle": "AmazingGraceWorship",
+      "url": "https://www.youtube.com/@AmazingGraceWorship",
+      "languages": [
+        "粵語"
+      ],
+      "channelId": "UCGpiURDJzGW0KLobc_pQLpw"
+    },
+    {
+      "id": "lambmusic",
+      "ministry": "小羊詩歌",
+      "handle": "lambmusic",
+      "url": "https://www.youtube.com/@lambmusic",
+      "languages": [
+        "普通話"
+      ],
+      "channelId": "UCdbFFcLrcDtwHf0TumhFXnQ"
+    },
+    {
+      "id": "hkacm_worship",
+      "ministry": "HKACM",
+      "handle": "hkacm_worship",
+      "url": "https://www.youtube.com/@hkacm_worship",
+      "languages": [
+        "粵語"
+      ],
+      "channelId": "UCIGCKTWZFjtQB-zGylKGiXg"
+    },
+    {
+      "id": "theworshipers",
+      "ministry": "敬拜者使團",
+      "handle": "theworshipers",
+      "url": "https://www.youtube.com/@theworshipers",
+      "languages": [
+        "粵語"
+      ],
+      "channelId": "UCerdYoR_Ztc9U1xvch-0c9A"
+    },
+    {
+      "id": "StreamofPraiseKids",
+      "ministry": "讚美之泉兒童",
+      "handle": "StreamofPraiseKids",
+      "url": "https://www.youtube.com/@StreamofPraiseKids",
+      "languages": [
+        "普通話"
+      ],
+      "channelId": "UC2KCkfsRUglpjc8tRM65DtQ"
+    }
+  ]
+}

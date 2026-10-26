@@ -424,6 +424,7 @@ img { max-width: 100%; display: block; }
 }
 .p-icon svg { width: 14px; height: 14px; }
 .p-icon.yt { color: var(--yt); }
+.p-icon.ytm { color: #ff4e45; }
 .p-icon.apple { color: var(--apple); }
 .p-icon.spotify { color: var(--spotify); }
 .p-icon.kkbox { color: var(--kkbox); }
@@ -519,6 +520,7 @@ img { max-width: 100%; display: block; }
 }
 .listen-btn .logo svg { width: 16px; height: 16px; }
 .listen-btn .logo.yt { background: var(--yt); }
+.listen-btn .logo.ytm { background: #ff4e45; }
 .listen-btn .logo.apple { background: var(--apple); }
 .listen-btn .logo.spotify { background: #191414; color: var(--spotify); }
 .listen-btn .logo.kkbox { background: var(--kkbox); }

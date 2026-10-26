@@ -22,7 +22,7 @@ if (!key) {
 function extractYtId(url) {
   if (!url) return "";
   const m = String(url).match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|music\.youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/
   );
   return m ? m[1] : "";
 }
@@ -51,38 +51,41 @@ if (!idList.length) {
   process.exit(1);
 }
 
-const url =
-  "https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=" +
-  encodeURIComponent(idList.join(",")) +
-  "&key=" +
-  encodeURIComponent(key);
-
-const res = await fetch(url);
-let body;
-try {
-  body = await res.json();
-} catch (_) {
-  console.error("sync-youtube: failed to parse YouTube response, HTTP", res.status);
-  process.exit(1);
-}
-
-if (!res.ok) {
-  const reason =
-    (body && body.error && (body.error.status || body.error.message)) || "unknown";
-  console.error("sync-youtube: YouTube API error", res.status, String(reason).slice(0, 180));
-  process.exit(1);
-}
-
 const videos = {};
-for (const item of body.items || []) {
-  const id = item.id;
-  if (!id) continue;
-  videos[id] = {
-    viewCount: Number((item.statistics && item.statistics.viewCount) || 0),
-    publishedAt: (item.snippet && item.snippet.publishedAt) || "",
-    title: (item.snippet && item.snippet.title) || "",
-    channelTitle: (item.snippet && item.snippet.channelTitle) || ""
-  };
+for (let i = 0; i < idList.length; i += 50) {
+  const chunk = idList.slice(i, i + 50);
+  const url =
+    "https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=" +
+    encodeURIComponent(chunk.join(",")) +
+    "&key=" +
+    encodeURIComponent(key);
+
+  const res = await fetch(url);
+  let body;
+  try {
+    body = await res.json();
+  } catch (_) {
+    console.error("sync-youtube: failed to parse YouTube response, HTTP", res.status);
+    process.exit(1);
+  }
+
+  if (!res.ok) {
+    const reason =
+      (body && body.error && (body.error.status || body.error.message)) || "unknown";
+    console.error("sync-youtube: YouTube API error", res.status, String(reason).slice(0, 180));
+    process.exit(1);
+  }
+
+  for (const item of body.items || []) {
+    const id = item.id;
+    if (!id) continue;
+    videos[id] = {
+      viewCount: Number((item.statistics && item.statistics.viewCount) || 0),
+      publishedAt: (item.snippet && item.snippet.publishedAt) || "",
+      title: (item.snippet && item.snippet.title) || "",
+      channelTitle: (item.snippet && item.snippet.channelTitle) || ""
+    };
+  }
 }
 
 const payload = {
