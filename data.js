@@ -6,11 +6,12 @@ window.HYMN_SEED = [
     languages: ["普通話"],
     themes: ["敬拜", "神的愛"],
     coverColor: ["#7c3aed", "#db2777"],
+    coverUrl: "https://i.ytimg.com/vi/MksWyFsHemY/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E8%AE%8A%E7%BE%8E%E4%B9%8B%E6%B3%89+%E5%A5%87%E5%A6%99%E7%9A%84%E6%84%9B",
-      apple_music: "https://music.apple.com/search?term=%E5%A5%87%E5%A6%99%E7%9A%84%E6%84%9B%20%E8%AE%8A%E7%BE%8E%E4%B9%8B%E6%B3%89",
-      spotify: "https://open.spotify.com/search/%E5%A5%87%E5%A6%99%E7%9A%84%E6%84%9B%20%E8%AE%8A%E7%BE%8E%E4%B9%8B%E6%B3%89",
-      kkbox: "https://www.kkbox.com/tw/tc/search.php?word=%E5%A5%87%E5%A6%99%E7%9A%84%E6%84%9B"
+      youtube: "https://www.youtube.com/watch?v=MksWyFsHemY",
+      apple_music: "https://music.apple.com/tw/album/%E5%A5%87%E5%A6%99%E7%9A%84%E6%84%9B/1506958117?i=1506958129",
+      spotify: "https://open.spotify.com/track/1gLoY2fTaH7Iq07s9xN85D",
+      kkbox: "https://www.kkbox.com/tw/tc/song/8rQIOnR059bDRnZpQQ"
     },
     source: "auto",
     status: "published",
@@ -30,11 +31,12 @@ window.HYMN_SEED = [
     languages: ["普通話"],
     themes: ["讚美", "敬拜"],
     coverColor: ["#2563eb", "#06b6d4"],
+    coverUrl: "https://i.ytimg.com/vi/7PVVUZINXWo/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E8%AE%8A%E7%BE%8E%E4%B9%8B%E6%B3%89+%E8%AE%93%E8%AE%8A%E7%BE%8E%E9%A3%9B%E6%8F%9A",
-      apple_music: "https://music.apple.com/search?term=%E8%AE%93%E8%AE%8A%E7%BE%8E%E9%A3%9B%E6%8F%9A",
-      spotify: "https://open.spotify.com/search/%E8%AE%93%E8%AE%8A%E7%BE%8E%E9%A3%9B%E6%8F%9A",
-      kkbox: "https://www.kkbox.com/tw/tc/search.php?word=%E8%AE%93%E8%AE%8A%E7%BE%8E%E9%A3%9B%E6%8F%9A"
+      youtube: "https://www.youtube.com/watch?v=7PVVUZINXWo",
+      apple_music: "https://music.apple.com/tw/album/%E8%AE%93%E8%AE%9A%E7%BE%8E%E9%A3%9B%E6%8F%9A-%E5%8F%A4%E5%85%B8%E7%89%88/1506960844?i=1506960956",
+      spotify: "https://open.spotify.com/track/71o1KMX62WNJypNCET77uG",
+      kkbox: "https://www.kkbox.com/tw/tc/song/PalFaw5aWKr80ejFA4"
     },
     source: "auto",
     status: "published",
@@ -50,15 +52,15 @@ window.HYMN_SEED = [
   {
     id: "s03",
     title: "恩典之路",
-    artist: "約書亞樂團",
+    artist: "讚美之泉",
     languages: ["普通話"],
     themes: ["恩典", "跟隨"],
     coverColor: ["#ea580c", "#eab308"],
+    coverUrl: "https://i.ytimg.com/vi/YaJ5gof0YNQ/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E7%B4%84%E6%9B%B8%E4%BA%9E%E6%A8%82%E5%9C%98+%E6%81%A9%E5%85%B8%E4%B9%8B%E8%B7%AF",
-      apple_music: "https://music.apple.com/search?term=%E6%81%A9%E5%85%B8%E4%B9%8B%E8%B7%AF%20%E7%B4%84%E6%9B%B8%E4%BA%9E",
-      spotify: "https://open.spotify.com/search/%E6%81%A9%E5%85%B8%E4%B9%8B%E8%B7%AF%20%E7%B4%84%E6%9B%B8%E4%BA%9E",
-      kkbox: "https://www.kkbox.com/tw/tc/search.php?word=%E6%81%A9%E5%85%B8%E4%B9%8B%E8%B7%AF"
+      youtube: "https://www.youtube.com/watch?v=YaJ5gof0YNQ",
+      apple_music: "https://music.apple.com/tw/album/%E6%81%A9%E5%85%B8%E4%B9%8B%E8%B7%AF/1506940998?i=1506941531",
+      kkbox: "https://www.kkbox.com/tw/tc/song/0mwVKXM8-zGvMyU6zS"
     },
     source: "auto",
     status: "published",
@@ -67,114 +69,109 @@ window.HYMN_SEED = [
     signals: {
       youtube: { total: 15200000, day: 51000, week: 265000, month: 1100000 },
       apple_music: { total: 2680000, day: 9400, week: 61000, month: 248000 },
-      spotify: { total: 3120000, day: 11200, week: 68000, month: 275000 },
       kkbox: { total: 1420000, day: 5800, week: 39000, month: 156000 }
     }
   },
   {
     id: "s04",
-    title: "永遠敬拜",
+    title: "有祢同行",
     artist: "基恩敬拜",
     languages: ["粵語"],
-    themes: ["敬拜", "委身"],
+    themes: ["敬拜", "安慰"],
     coverColor: ["#0d9488", "#4f46e5"],
+    coverUrl: "https://i.ytimg.com/vi/2KM6F_vQSD0/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E5%9F%BA%E6%81%A9%E6%95%AC%E6%8B%9C+%E6%B0%B8%E9%81%A0%E6%95%AC%E6%8B%9C",
-      apple_music: "https://music.apple.com/search?term=%E6%B0%B8%E9%81%A0%E6%95%AC%E6%8B%9C%20%E5%9F%BA%E6%81%A9",
-      spotify: "https://open.spotify.com/search/%E6%B0%B8%E9%81%A0%E6%95%AC%E6%8B%9C%20%E5%9F%BA%E6%81%A9",
-      kkbox: "https://www.kkbox.com/hk/tc/search.php?word=%E6%B0%B8%E9%81%A0%E6%95%AC%E6%8B%9C"
+      youtube: "https://www.youtube.com/watch?v=2KM6F_vQSD0",
+      apple_music: "https://music.apple.com/hk/album/%E6%9C%89%E7%A5%A2%E5%90%8C%E8%A1%8C-with-you-by-my-side/1767124262?i=1767124269"
     },
     source: "auto",
     status: "published",
-    blurb: "香港事工粵語敬拜代表作之一，適合主日敬拜。",
+    blurb: "香港基恩敬拜粵語代表作，溫柔述說神一路同行。",
     created_at: "2026-10-02T14:00:00+08:00",
     signals: {
-      youtube: { total: 2100000, day: 18000, week: 92000, month: 310000 },
-      apple_music: { total: 420000, day: 2800, week: 18000, month: 72000 },
-      spotify: { total: 380000, day: 2100, week: 14000, month: 56000 },
-      kkbox: { total: 780000, day: 5200, week: 34000, month: 128000 }
+      youtube: { total: 3600000, day: 18000, week: 92000, month: 310000 },
+      apple_music: { total: 420000, day: 2800, week: 18000, month: 72000 }
     }
   },
   {
     id: "s05",
-    title: "祢是我的一切",
+    title: "陪我渡過",
     artist: "基恩敬拜",
     languages: ["粵語"],
-    themes: ["親密", "敬拜"],
+    themes: ["親密", "信靠"],
     coverColor: ["#be185d", "#7c3aed"],
+    coverUrl: "https://i.ytimg.com/vi/Fzs1uHV0qPQ/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E5%9F%BA%E6%81%A9%E6%95%AC%E6%8B%9C+%E4%BD%A0%E6%98%AF%E6%88%91%E7%9A%84%E4%B8%80%E5%88%87",
-      spotify: "https://open.spotify.com/search/%E4%BD%A0%E6%98%AF%E6%88%91%E7%9A%84%E4%B8%80%E5%88%87%20%E5%9F%BA%E6%81%A9",
-      kkbox: "https://www.kkbox.com/hk/tc/search.php?word=%E4%BD%A0%E6%98%AF%E6%88%91%E7%9A%84%E4%B8%80%E5%88%87"
+      youtube: "https://www.youtube.com/watch?v=Fzs1uHV0qPQ",
+      apple_music: "https://music.apple.com/tw/album/%E9%99%AA%E6%88%91%E6%B8%A1%E9%81%8E-you-were-with-me/1767204189?i=1767204192"
     },
     source: "creator",
     status: "published",
-    blurb: "溫柔粵語敬拜，強調以神為生命中心。",
+    blurb: "溫柔粵語敬拜，述說神在低谷仍與我同行。",
     created_at: "2026-10-18T11:00:00+08:00",
     signals: {
-      youtube: { total: 860000, day: 12000, week: 64000, month: 180000 },
-      spotify: { total: 210000, day: 1600, week: 9800, month: 38000 },
-      kkbox: { total: 450000, day: 3100, week: 21000, month: 82000 }
+      youtube: { total: 1200000, day: 12000, week: 64000, month: 180000 },
+      apple_music: { total: 210000, day: 1600, week: 9800, month: 38000 }
     }
   },
   {
     id: "s06",
-    title: "我的心祢全知道",
+    title: "基督是我滿足",
     artist: "約書亞樂團",
     languages: ["普通話"],
-    themes: ["安慰", "信靠"],
+    themes: ["委身", "滿足"],
     coverColor: ["#1d4ed8", "#9333ea"],
+    coverUrl: "https://i.ytimg.com/vi/2DRY1xb3bPc/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E7%B4%84%E6%9B%B8%E4%BA%9E+%E6%88%91%E7%9A%84%E5%BF%83%E4%BD%A0%E5%85%A8%E7%9F%A5%E9%81%93",
-      apple_music: "https://music.apple.com/search?term=%E6%88%91%E7%9A%84%E5%BF%83%E4%BD%A0%E5%85%A8%E7%9F%A5%E9%81%93",
-      spotify: "https://open.spotify.com/search/%E6%88%91%E7%9A%84%E5%BF%83%E4%BD%A0%E5%85%A8%E7%9F%A5%E9%81%93",
-      kkbox: "https://www.kkbox.com/tw/tc/search.php?word=%E6%88%91%E7%9A%84%E5%BF%83%E4%BD%A0%E5%85%A8%E7%9F%A5%E9%81%93"
+      youtube: "https://www.youtube.com/watch?v=2DRY1xb3bPc",
+      apple_music: "https://music.apple.com/tw/album/%E5%9F%BA%E7%9D%A3%E6%98%AF%E6%88%91%E6%BB%BF%E8%B6%B3/1537481790?i=1537482047",
+      spotify: "https://open.spotify.com/track/0yPy2W5TDenzATj1CTuYPN"
     },
     source: "auto",
     status: "published",
-    blurb: "安靜、深刻的敬拜詩，常在禱告會使用。",
+    blurb: "約書亞樂團華語敬拜，宣告基督作生命的滿足。",
     created_at: "2026-06-15T16:00:00+08:00",
     signals: {
       youtube: { total: 7400000, day: 22000, week: 140000, month: 540000 },
       apple_music: { total: 1340000, day: 4500, week: 30000, month: 118000 },
-      spotify: { total: 1680000, day: 5800, week: 38000, month: 148000 },
-      kkbox: { total: 720000, day: 2900, week: 19000, month: 76000 }
+      spotify: { total: 1680000, day: 5800, week: 38000, month: 148000 }
     }
   },
   {
     id: "s07",
     title: "主祢是我力量",
-    artist: "ACM",
-    languages: ["粵語"],
+    artist: "讚美之泉",
+    languages: ["普通話"],
     themes: ["力量", "倚靠"],
     coverColor: ["#b45309", "#dc2626"],
+    coverUrl: "https://i.ytimg.com/vi/izOAxx2bRIc/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=ACM+%E4%B8%BB%E4%BD%A0%E6%98%AF%E6%88%91%E5%8A%9B%E9%87%8F",
-      apple_music: "https://music.apple.com/search?term=%E4%B8%BB%E4%BD%A0%E6%98%AF%E6%88%91%E5%8A%9B%E9%87%8F%20ACM",
-      kkbox: "https://www.kkbox.com/hk/tc/search.php?word=%E4%B8%BB%E4%BD%A0%E6%98%AF%E6%88%91%E5%8A%9B%E9%87%8F"
+      youtube: "https://www.youtube.com/watch?v=izOAxx2bRIc",
+      apple_music: "https://music.apple.com/tw/album/%E4%B8%BB%E7%A5%A2%E6%98%AF%E6%88%91%E5%8A%9B%E9%87%8F/1506948604?i=1506949667",
+      kkbox: "https://www.kkbox.com/tw/tc/song/1aogd74X0t4rwKiGMg"
     },
     source: "auto",
     status: "published",
-    blurb: "香港 ACM 粵語詩歌，宣告神作隨時的幫助。",
+    blurb: "宣告神作隨時的幫助與力量，聚會常用。",
     created_at: "2026-10-21T09:30:00+08:00",
     signals: {
-      youtube: { total: 540000, day: 9000, week: 48000, month: 150000 },
-      apple_music: { total: 185000, day: 1400, week: 9200, month: 36000 },
-      kkbox: { total: 520000, day: 3800, week: 25000, month: 96000 }
+      youtube: { total: 5400000, day: 19000, week: 98000, month: 350000 },
+      apple_music: { total: 980000, day: 3200, week: 21000, month: 84000 },
+      kkbox: { total: 720000, day: 2900, week: 19000, month: 76000 }
     }
   },
   {
     id: "s08",
-    title: "祂是我的平安",
+    title: "祢是我的平安",
     artist: "小羊詩歌",
     languages: ["普通話"],
     themes: ["平安", "安慰"],
     coverColor: ["#0891b2", "#22c55e"],
+    coverUrl: "https://i.ytimg.com/vi/ez5AHYAT0SU/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E5%B0%8F%E7%BE%8A%E8%A9%A9%E6%AD%8C+%E4%BB%96%E6%98%AF%E6%88%91%E7%9A%84%E5%B9%B3%E5%AE%89",
-      apple_music: "https://music.apple.com/search?term=%E4%BB%96%E6%98%AF%E6%88%91%E7%9A%84%E5%B9%B3%E5%AE%89%20%E5%B0%8F%E7%BE%8A",
-      spotify: "https://open.spotify.com/search/%E4%BB%96%E6%98%AF%E6%88%91%E7%9A%84%E5%B9%B3%E5%AE%89",
-      kkbox: "https://www.kkbox.com/tw/tc/search.php?word=%E4%BB%96%E6%98%AF%E6%88%91%E7%9A%84%E5%B9%B3%E5%AE%89"
+      youtube: "https://www.youtube.com/watch?v=ez5AHYAT0SU",
+      apple_music: "https://music.apple.com/hk/album/%E7%A5%A2%E6%98%AF%E6%88%91%E7%9A%84%E5%B9%B3%E5%AE%89/1573866019?i=1573866202",
+      kkbox: "https://www.kkbox.com/tw/tc/song/Kr5VWsaX6Il0CvkFdv"
     },
     source: "auto",
     status: "published",
@@ -183,70 +180,64 @@ window.HYMN_SEED = [
     signals: {
       youtube: { total: 3200000, day: 15000, week: 88000, month: 290000 },
       apple_music: { total: 780000, day: 3200, week: 21000, month: 84000 },
-      spotify: { total: 920000, day: 3900, week: 26000, month: 102000 },
       kkbox: { total: 540000, day: 2400, week: 16000, month: 64000 }
     }
   },
   {
     id: "s09",
-    title: "獻上感恩的心",
+    title: "神的道路",
     artist: "天韻合唱團",
     languages: ["普通話"],
-    themes: ["感恩", "讚美"],
+    themes: ["信靠", "等候"],
     coverColor: ["#ca8a04", "#f97316"],
+    coverUrl: "https://i.ytimg.com/vi/xb8O_XoTlHw/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E5%A4%A9%E9%9F%BB+%E7%8D%BB%E4%B8%8A%E6%84%9F%E6%81%A9%E7%9A%84%E5%BF%83",
-      apple_music: "https://music.apple.com/search?term=%E7%8D%BB%E4%B8%8A%E6%84%9F%E6%81%A9%E7%9A%84%E5%BF%83",
-      spotify: "https://open.spotify.com/search/%E7%8D%BB%E4%B8%8A%E6%84%9F%E6%81%A9%E7%9A%84%E5%BF%83",
-      kkbox: "https://www.kkbox.com/tw/tc/search.php?word=%E7%8D%BB%E4%B8%8A%E6%84%9F%E6%81%A9%E7%9A%84%E5%BF%83"
+      youtube: "https://www.youtube.com/watch?v=xb8O_XoTlHw",
+      apple_music: "https://music.apple.com/tw/album/%E7%A5%9E%E7%9A%84%E9%81%93%E8%B7%AF/1656655595?i=1656655598",
+      kkbox: "https://www.kkbox.com/tw/tc/song/PXiI8tQ78IwsCDxlT2"
     },
     source: "auto",
     status: "published",
-    blurb: "華語經典感恩詩歌，跨世代傳唱。",
+    blurb: "天韻經典：神的道路高過人的路，耐心等候必要歡呼。",
     created_at: "2026-05-10T08:00:00+08:00",
     signals: {
-      youtube: { total: 18900000, day: 28000, week: 195000, month: 980000 },
-      apple_music: { total: 2100000, day: 4800, week: 34000, month: 156000 },
-      spotify: { total: 2750000, day: 6100, week: 42000, month: 188000 },
-      kkbox: { total: 1680000, day: 4200, week: 31000, month: 142000 }
+      youtube: { total: 8900000, day: 24000, week: 160000, month: 720000 },
+      apple_music: { total: 1100000, day: 3800, week: 26000, month: 98000 },
+      kkbox: { total: 980000, day: 3600, week: 24000, month: 92000 }
     }
   },
   {
     id: "s10",
-    title: "差遣我",
-    artist: "新造的人",
-    languages: ["粵語", "普通話"],
+    title: "請差遣我",
+    artist: "ACM",
+    languages: ["粵語"],
     themes: ["使命", "回應"],
     coverColor: ["#4c1d95", "#db2777"],
+    coverUrl: "https://i.ytimg.com/vi/muJD3NYxZKc/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E6%96%B0%E9%80%A0%E7%9A%84%E4%BA%BA+%E5%B7%AE%E9%81%A3%E6%88%91",
-      apple_music: "https://music.apple.com/search?term=%E5%B7%AE%E9%81%A3%E6%88%91%20%E6%96%B0%E9%80%A0%E7%9A%84%E4%BA%BA",
-      spotify: "https://open.spotify.com/search/%E5%B7%AE%E9%81%A3%E6%88%91",
-      kkbox: "https://www.kkbox.com/hk/tc/search.php?word=%E5%B7%AE%E9%81%A3%E6%88%91"
+      youtube: "https://www.youtube.com/watch?v=muJD3NYxZKc",
+      apple_music: "https://music.apple.com/hk/album/%E8%AB%8B%E5%B7%AE%E9%81%A3%E6%88%91/1791234130?i=1791234282"
     },
     source: "creator",
     status: "published",
-    blurb: "回應呼召的詩歌，粵普版本皆常見。",
+    blurb: "香港 ACM 粵語詩歌，回應神的差遣與呼召。",
     created_at: "2026-10-24T18:00:00+08:00",
     signals: {
       youtube: { total: 1200000, day: 25000, week: 76000, month: 210000 },
-      apple_music: { total: 310000, day: 3500, week: 16000, month: 58000 },
-      spotify: { total: 280000, day: 4200, week: 18000, month: 62000 },
-      kkbox: { total: 390000, day: 4800, week: 22000, month: 74000 }
+      apple_music: { total: 310000, day: 3500, week: 16000, month: 58000 }
     }
   },
   {
     id: "s11",
-    title: "全地都當讚美主",
+    title: "全地當讚美",
     artist: "讚美之泉",
     languages: ["普通話"],
     themes: ["讚美", "宣教"],
     coverColor: ["#9f1239", "#c2410c"],
+    coverUrl: "https://i.ytimg.com/vi/qxl-qcVwxQ8/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E8%AE%8A%E7%BE%8E%E4%B9%8B%E6%B3%89+%E5%85%A8%E5%9C%B0%E9%83%BD%E7%95%B6%E8%AE%8A%E7%BE%8E%E4%B8%BB",
-      apple_music: "https://music.apple.com/search?term=%E5%85%A8%E5%9C%B0%E9%83%BD%E7%95%B6%E8%AE%8A%E7%BE%8E%E4%B8%BB",
-      spotify: "https://open.spotify.com/search/%E5%85%A8%E5%9C%B0%E9%83%BD%E7%95%B6%E8%AE%8A%E7%BE%8E%E4%B8%BB",
-      kkbox: "https://www.kkbox.com/tw/tc/search.php?word=%E5%85%A8%E5%9C%B0%E9%83%BD%E7%95%B6%E8%AE%8A%E7%BE%8E%E4%B8%BB"
+      youtube: "https://www.youtube.com/watch?v=qxl-qcVwxQ8",
+      apple_music: "https://music.apple.com/tw/album/%E5%85%A8%E5%9C%B0%E7%95%B6%E8%AE%9A%E7%BE%8E/1506956731?i=1506957259"
     },
     source: "auto",
     status: "published",
@@ -254,33 +245,28 @@ window.HYMN_SEED = [
     created_at: "2026-04-02T10:00:00+08:00",
     signals: {
       youtube: { total: 6100000, day: 19000, week: 102000, month: 430000 },
-      apple_music: { total: 980000, day: 2900, week: 19000, month: 78000 },
-      spotify: { total: 1240000, day: 3600, week: 24000, month: 96000 },
-      kkbox: { total: 610000, day: 2200, week: 15000, month: 58000 }
+      apple_music: { total: 980000, day: 2900, week: 19000, month: 78000 }
     }
   },
   {
     id: "s12",
-    title: "我願意",
+    title: "原是為我",
     artist: "基恩敬拜",
     languages: ["粵語"],
-    themes: ["委身", "回應"],
+    themes: ["十架", "恩典"],
     coverColor: ["#115e59", "#1e3a8a"],
+    coverUrl: "https://i.ytimg.com/vi/Wg5LDm12jqg/hqdefault.jpg",
     links: {
-      youtube: "https://www.youtube.com/results?search_query=%E5%9F%BA%E6%81%A9%E6%95%AC%E6%8B%9C+%E6%88%91%E9%A1%98%E6%84%8F",
-      apple_music: "https://music.apple.com/search?term=%E6%88%91%E9%A1%98%E6%84%8F%20%E5%9F%BA%E6%81%A9",
-      spotify: "https://open.spotify.com/search/%E6%88%91%E9%A1%98%E6%84%8F%20%E5%9F%BA%E6%81%A9",
-      kkbox: "https://www.kkbox.com/hk/tc/search.php?word=%E6%88%91%E9%A1%98%E6%84%8F"
+      youtube: "https://www.youtube.com/watch?v=Wg5LDm12jqg",
+      apple_music: "https://music.apple.com/tw/album/%E5%8E%9F%E6%98%AF%E7%82%BA%E6%88%91-all-for-my-sake/1767033739?i=1767033740"
     },
     source: "auto",
     status: "published",
-    blurb: "回應呼召、獻上生命的粵語敬拜歌。",
+    blurb: "基恩敬拜粵語詩歌，述說十架恩典原是為我。",
     created_at: "2026-10-08T15:00:00+08:00",
     signals: {
       youtube: { total: 980000, day: 14000, week: 71000, month: 240000 },
-      apple_music: { total: 260000, day: 1900, week: 12000, month: 48000 },
-      spotify: { total: 230000, day: 1500, week: 10000, month: 40000 },
-      kkbox: { total: 610000, day: 3400, week: 23000, month: 90000 }
+      apple_music: { total: 260000, day: 1900, week: 12000, month: 48000 }
     }
   }
 ];

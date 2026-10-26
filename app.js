@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "hymn_directory_v2";
+  const STORAGE_KEY = "hymn_directory_v3";
   const ADMIN_SESSION = "hymn_admin_ok";
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
 
@@ -107,10 +107,23 @@
     return t.slice(0, 1);
   }
 
+  function ytThumbFromUrl(url) {
+    if (!url) return "";
+    const m = String(url).match(
+      /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/
+    );
+    return m ? `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` : "";
+  }
+
   function coverHtml(song, sizeClass) {
     const [c1, c2] = coverColors(song);
     const initials = coverInitials(song);
-    return `<div class="cover ${sizeClass}" style="background:linear-gradient(145deg,${esc(c1)},${esc(c2)})" aria-hidden="true"><span>${esc(initials)}</span></div>`;
+    const grad = `linear-gradient(145deg,${esc(c1)},${esc(c2)})`;
+    const url = (song.coverUrl || "").trim();
+    if (url) {
+      return `<div class="cover cover-has-img ${sizeClass}" style="background:${grad}" aria-hidden="true"><img class="cover-img" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove();this.parentElement&&this.parentElement.classList.remove('cover-has-img');"/><span class="cover-fallback-letter">${esc(initials)}</span></div>`;
+    }
+    return `<div class="cover ${sizeClass}" style="background:${grad}" aria-hidden="true"><span>${esc(initials)}</span></div>`;
   }
 
   function iconSvg(name) {
@@ -500,6 +513,13 @@
             <input id="f-kkbox" type="url" placeholder="https://www.kkbox.com/..." />
           </div>
           <div class="field">
+            <label for="f-cover">封面圖 URL（選填）</label>
+            <input id="f-cover" type="url" placeholder="https://… 或留空：有 YouTube 會用其縮圖" />
+            <div class="cover-preview-wrap" id="cover-preview-wrap" hidden>
+              <img id="cover-preview" class="cover-preview" alt="封面預覽" />
+            </div>
+          </div>
+          <div class="field">
             <label for="f-blurb">簡介</label>
             <textarea id="f-blurb" placeholder="一句話介紹呢首歌…"></textarea>
           </div>
@@ -697,6 +717,32 @@
       app.innerHTML = renderSubmit(html);
       bindSubmit();
     }
+
+    function refreshCoverPreview() {
+      const wrap = document.getElementById("cover-preview-wrap");
+      const img = document.getElementById("cover-preview");
+      if (!wrap || !img) return;
+      const manual = (document.getElementById("f-cover")?.value || "").trim();
+      const ytVal = (document.getElementById("f-yt")?.value || "").trim();
+      const src = manual || ytThumbFromUrl(ytVal);
+      if (src) {
+        img.onerror = () => { wrap.hidden = true; };
+        img.src = src;
+        wrap.hidden = false;
+      } else {
+        img.removeAttribute("src");
+        wrap.hidden = true;
+      }
+    }
+    ["f-cover", "f-yt"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("input", refreshCoverPreview);
+        el.addEventListener("change", refreshCoverPreview);
+      }
+    });
+    refreshCoverPreview();
+
     btn.addEventListener("click", () => {
       const title = document.getElementById("f-title").value.trim();
       const artist = document.getElementById("f-artist").value.trim();
@@ -741,6 +787,8 @@
       }
 
       const palette = window.COVER_PALETTE || [["#7c3aed", "#db2777"]];
+      const coverManual = (document.getElementById("f-cover")?.value || "").trim();
+      const coverUrl = coverManual || ytThumbFromUrl(yt) || undefined;
       const song = {
         id: "u" + Date.now().toString(36),
         title,
@@ -748,6 +796,7 @@
         languages: langRaw.split(","),
         themes,
         coverColor: palette[Math.floor(Math.random() * palette.length)],
+        coverUrl,
         links,
         source: "creator",
         status: "pending",

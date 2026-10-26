@@ -37,7 +37,7 @@ URL 會記住選擇，例如 `#/?platform=spotify&chart=日榜`。
 
 ## UI
 
-深色音樂平台風格（接近 Spotify／Apple Music）：側欄／底部導航、精選 Hero、封面漸層（歌名首字＋`coverColor`）、平台選擇 tab＋時段 tab、榜單列含排名／封面／平台 SVG icon／出站播放掣。唔依賴外部圖片 CDN。
+深色音樂平台風格（接近 Spotify／Apple Music）：側欄／底部導航、精選 Hero、封面優先用 `coverUrl`（多數為 YouTube thumbnail／平台專輯圖；壞圖會退回漸層＋歌名首字）、平台選擇 tab＋時段 tab、榜單列含排名／封面／平台 SVG icon／出站播放掣。
 
 ## 部署到 Vercel（測試）
 
@@ -64,7 +64,7 @@ vercel
 
 - Frontend-only：提交／審核／投票只寫入該瀏覽器 `localStorage`  
 - 管理員密碼喺前端，僅 demo  
-- 示範平台連結多數係搜尋頁  
+- 示範平台連結係已核實嘅曲目／影片深層連結（唔係搜尋頁）；缺核實嘅平台會省略該 key  
 - 播放量係 seed 示範數字，唔係即時 API  
 
 ## 本機預覽
@@ -98,6 +98,6 @@ python3 -m http.server 8765
 
 ## 注意
 
-- 示範連結多數係平台搜尋頁；正式版應換成官方曲目深層連結。  
-- 若本機曾開過舊版（綜合分），Admin「重設為示範數據」或清 `localStorage` key `hymn_directory_v2` 可刷新 seed。  
-- 封面暫時仍用漸層＋首字；平台頭圖未接。  
+- Seed 出站連結應為官方／機構曲目頁（`watch?v=`、Apple／Spotify track、KKBOX song）。唔好再放搜尋頁。  
+- 每首歌可有 `coverUrl`（https 圖）；優先 YouTube `i.ytimg.com/vi/<id>/hqdefault.jpg`，否則用 Apple／Spotify 專輯圖。`coverColor` 仍作 fallback。  
+- Storage key 已升至 `hymn_directory_v3`（自動載入新 seed）。若仍見舊搜尋連結，Admin「重設為示範數據」或清該 key。  

@@ -248,7 +248,25 @@ img { max-width: 100%; display: block; }
   background: linear-gradient(160deg, rgba(255,255,255,0.18) 0%, transparent 42%, rgba(0,0,0,0.2) 100%);
   pointer-events: none;
 }
-.cover span { position: relative; z-index: 1; text-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+.cover span,
+.cover-fallback-letter { position: relative; z-index: 1; text-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+.cover-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  z-index: 2;
+}
+.cover-has-img .cover-fallback-letter { display: none; }
+.cover-has-img::after { opacity: 0.22; z-index: 3; }
+.cover-preview-wrap {
+  margin-top: 10px;
+  width: 96px; height: 96px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.cover-preview { width: 100%; height: 100%; object-fit: cover; }
 .cover-sm { width: 52px; height: 52px; font-size: 15px; border-radius: 8px; }
 .cover-md { width: 72px; height: 72px; font-size: 20px; border-radius: 10px; }
 .cover-lg { width: 180px; height: 180px; font-size: 48px; border-radius: 12px; }
