@@ -1,6 +1,8 @@
 (function () {
   const STORAGE_KEY = "hymn_directory_v11";
   const ADMIN_SESSION = "hymn_admin_ok";
+  const NEW_SONG_LIMIT = 15;
+  const DAILY_PICK_COUNT = 3;
   const PLATFORMS = ["youtube", "apple_music", "spotify", "kkbox"];
   /** Outbound listen order: YouTube Music first, then YouTube, then others */
   const LINK_PLATFORMS = ["youtube_music", "youtube", "apple_music", "spotify", "kkbox"];
@@ -193,10 +195,16 @@
   }
 
   function coverColors(song) {
-    if (song.coverColor && song.coverColor.length >= 2) return song.coverColor;
-    const palette = window.COVER_PALETTE || [["#7c3aed", "#db2777"]];
+    const palette = [
+      ["#2A1F14", "#6B4423"],
+      ["#1A1210", "#4A3020"],
+      ["#3D2810", "#8B5A2B"],
+      ["#141210", "#3D3028"],
+      ["#2C1810", "#5C4030"],
+      ["#3A2414", "#A97848"]
+    ];
     let h = 0;
-    const key = song.id || song.title || "";
+    const key = (song && (song.id || song.title)) || "";
     for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
     return palette[h % palette.length];
   }
@@ -227,8 +235,10 @@
 
   function iconSvg(name) {
     const icons = {
-      home: '<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3.5 10.2V21h6.2v-6.5h4.6V21H20.5V10.2L12 3.2z"/></svg>',
+      home: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z"/></svg>',
       search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+      spark: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.2 2.2M15.8 15.8 18 18M18 6l-2.2 2.2M8.2 15.8 6 18"/></svg>',
+      flame: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3s2 3 2 5a2.5 2.5 0 0 1-2 2.4C9 10 8 8.5 8 7c0 0-3 3-3 7a7 7 0 0 0 14 0c0-4-3-7-7-11z"/></svg>',
       plus: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>',
       admin: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7l-8-4z"/></svg>',
       play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5L8 5.5z"/></svg>',
@@ -279,32 +289,58 @@
     return null;
   }
 
-  function shell(content, active) {
-    const act = active || "home";
+  function shell(content, activeOrOpts) {
+    const opts =
+      activeOrOpts && typeof activeOrOpts === "object" ? activeOrOpts : { active: activeOrOpts || "" };
+    const onAdmin = !!(opts.admin || opts.active === "admin" || route().name === "admin");
+    const mode = onAdmin ? "" : currentHomeMode();
+    const q = (hashQuery().get("q") || "").trim();
+    const hasHero = !!opts.hero;
+    const searchActive = searchOpen || !!q;
+    const exploreHref = homeHref({ chart: "" });
+    const newHref = homeHref({ chart: "新歌" });
+    const hotHref = homeHref({ chart: "最熱" });
+    const menu = [
+      ["探索", exploreHref, mode === "探索"],
+      ["新歌", newHref, mode === "新歌"],
+      ["最熱", hotHref, mode === "最熱"]
+    ]
+      .map(
+        ([label, href, on]) =>
+          `<a class="${on ? "active" : ""}" href="${esc(href)}"${on ? ' aria-current="page"' : ""}>${esc(label)}</a>`
+      )
+      .join("");
     return `
-      <div class="app-shell">
-        <nav class="side-nav" aria-label="主選單">
-          <a class="side-brand" href="#/" title="詩歌目錄">詩</a>
-          <a class="nav-item ${act === "home" ? "active" : ""}" href="#/">${iconSvg("home")}<span class="nav-label">目錄</span></a>
-          <div class="side-spacer"></div>
-          <a class="nav-item ${act === "admin" ? "active" : ""}" href="#/admin">${iconSvg("admin")}<span class="nav-label">管理</span></a>
-        </nav>
-        <div class="content-wrap">
-          <div class="mobile-top">
-            <a class="mobile-brand" href="#/">
-              <span class="mark">詩</span>
-              <span>詩歌目錄</span>
+      <div class="app-shell${hasHero ? " has-hero" : ""}${searchOpen ? " search-open" : ""}${q ? " has-query" : ""}" data-mode="${esc(mode)}">
+        <header class="topbar">
+          <div class="topbar-row">
+            <a class="brand" href="${esc(exploreHref)}">
+              <span class="brand-mark">BLESS<em>ONG</em></span>
+              <span class="brand-sub">詩歌目錄</span>
             </a>
+            <nav class="top-menu" aria-label="主選單">
+              ${menu}
+              <a href="#/" id="nav-today">今日</a>
+            </nav>
+            <div class="topbar-search search-box">
+              <span class="icon">${iconSvg("search")}</span>
+              <input id="search-input" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggest" placeholder="搜尋歌名、機構、主題…" value="${esc(q)}" autocomplete="off" />
+              <ul id="search-suggest" class="search-suggest" role="listbox" hidden></ul>
+            </div>
           </div>
+        </header>
+        <div class="content-wrap">
           <main class="main">${content}</main>
           <footer class="footer">
-            榜單按官方 YouTube 頻道觀看次數排序。本站提供各平台收聽連結，不託管音檔。公開上架暫未開放。
-            <a href="#/admin">管理</a>
+            <p>榜單按官方 YouTube 頻道觀看次數排序。本站提供各平台收聽連結，不託管音檔。公開上架暫未開放。</p>
+            <a class="footer-admin" href="#/admin">管理</a>
           </footer>
         </div>
-        <nav class="bottom-nav" aria-label="底部選單">
-          <a class="${act === "home" ? "active" : ""}" href="#/">${iconSvg("home")}<span>目錄</span></a>
-          <a class="${act === "admin" ? "active" : ""}" href="#/admin">${iconSvg("admin")}<span>管理</span></a>
+        <nav class="tabbar" aria-label="底部選單">
+          <a class="${mode === "探索" ? "active" : ""}" href="${esc(exploreHref)}">${iconSvg("home")}<span>探索</span></a>
+          <a class="${mode === "新歌" ? "active" : ""}" href="${esc(newHref)}">${iconSvg("spark")}<span>新歌</span></a>
+          <a class="${mode === "最熱" ? "active" : ""}" href="${esc(hotHref)}">${iconSvg("flame")}<span>最熱</span></a>
+          <button type="button" class="tab-btn${searchActive ? " active" : ""}" id="tab-search">${iconSvg("search")}<span>搜尋</span></button>
         </nav>
       </div>
     `;
@@ -348,6 +384,26 @@
 
   function directoryHref() {
     return withQuery("#/", preservedHomeQuery());
+  }
+
+  function homeHref(patch) {
+    const params = preservedHomeQuery();
+    Object.keys(patch || {}).forEach((key) => {
+      if (patch[key] == null || patch[key] === "") params.delete(key);
+      else params.set(key, patch[key]);
+    });
+    return withQuery("#/", params);
+  }
+
+  /** Explore is the default home. Legacy chart aliases still map onto 新歌／最熱. */
+  function homeModeFromQuery(raw) {
+    if (raw === "最新" || raw === "新歌") return "新歌";
+    if (raw === "最熱" || raw === "日榜" || raw === "周榜" || raw === "月榜") return "最熱";
+    return "探索";
+  }
+
+  function currentHomeMode() {
+    return homeModeFromQuery(hashQuery().get("chart") || "");
   }
 
   function songHref(id) {
@@ -589,6 +645,8 @@
   let virtualCleanup = null;
   let homeGrid = null;
   let searchTimer = null;
+  let searchOpen = false;
+  let pendingScrollId = null;
   let suggestSticky = { suppress: false, active: -1 };
   let reopenSuggest = null;
 
@@ -646,6 +704,7 @@
     return (
       '<article class="song-card' +
       (opts.flow ? " in-flow" : "") +
+      (showRank && rank <= 3 ? " is-lead" : "") +
       '" role="listitem" data-id="' +
       esc(song.id) +
       '"' +
@@ -1181,165 +1240,441 @@
     }, 1600);
   }
 
-  function renderHome() {
-    const hash = location.hash;
-    const qIdx = hash.indexOf("?");
-    const qs = qIdx >= 0 ? new URLSearchParams(hash.slice(qIdx + 1)) : new URLSearchParams();
-    const chart = normalizeChart(qs.get("chart") || "最熱");
-    const q = (qs.get("q") || "").trim();
-    const lang = qs.get("lang") || "";
-    const ministry = qs.get("ministry") || "";
-    const tag = qs.get("tag") || "";
-    const theme = qs.get("theme") || "";
-    const searching = !!q;
+  function hkDateKey(date) {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Hong_Kong",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    return fmt.format(date || new Date());
+  }
 
-    let list = publishedSongs().filter((s) => onYoutubeChart(s, chart));
-    if (lang) list = list.filter((s) => (s.languages || []).includes(lang));
-    if (ministry) list = list.filter((s) => s.artist === ministry);
-    if (tag) list = list.filter((s) => (s.tags || []).includes(tag));
-    if (theme) list = list.filter((s) => (s.themes || []).includes(theme));
+  function hashString(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function pickFromPool(pool, rand, usedIds, usedArtists, relaxArtist) {
+    if (!pool.length) return null;
+    const start = Math.floor(rand() * pool.length);
+    for (let n = 0; n < pool.length; n++) {
+      const song = pool[(start + n) % pool.length];
+      if (!song || usedIds.has(song.id)) continue;
+      const artist = (song.artist || "").trim();
+      if (!relaxArtist && artist && usedArtists.has(artist)) continue;
+      return song;
+    }
+    return null;
+  }
+
+  /**
+   * Three picks for the Hong Kong calendar day: one recent, one hot, one from
+   * the wider catalog. Stable until the date changes. Tags such as 伴奏／字幕
+   * stay eligible.
+   */
+  function dailyPicks(dateKey) {
+    const rand = mulberry32(hashString("blessong-daily:" + (dateKey || hkDateKey())));
+    const base = publishedSongs().filter((song) => song.links && song.links.youtube);
+    const newest = base
+      .filter((song) => onYoutubeChart(song, "新歌"))
+      .sort((a, b) => chartCompare(a, b, "新歌"));
+    const hottest = base
+      .filter((song) => onYoutubeChart(song, "最熱"))
+      .sort((a, b) => chartCompare(a, b, "最熱"));
+    const usedIds = new Set();
+    const usedArtists = new Set();
+    const chosen = [];
+
+    function take(pool, limit) {
+      const windowed = limit && pool.length > limit ? pool.slice(0, limit) : pool;
+      let song = pickFromPool(windowed, rand, usedIds, usedArtists, false);
+      if (!song && windowed !== pool) song = pickFromPool(pool, rand, usedIds, usedArtists, false);
+      if (!song) song = pickFromPool(pool, rand, usedIds, usedArtists, true);
+      if (!song) return;
+      usedIds.add(song.id);
+      if ((song.artist || "").trim()) usedArtists.add(song.artist.trim());
+      chosen.push(song);
+    }
+
+    take(newest, 40);
+    take(hottest, 40);
+    take(base, 0);
+    while (chosen.length < DAILY_PICK_COUNT) {
+      const before = chosen.length;
+      take(base, 0);
+      if (chosen.length === before) break;
+    }
+    return chosen.slice(0, DAILY_PICK_COUNT);
+  }
+
+  function applyListFilters(list, filters) {
+    let out = list;
+    if (filters.lang) out = out.filter((song) => (song.languages || []).includes(filters.lang));
+    if (filters.ministry) out = out.filter((song) => song.artist === filters.ministry);
+    if (filters.tag) out = out.filter((song) => (song.tags || []).includes(filters.tag));
+    if (filters.theme) out = out.filter((song) => (song.themes || []).includes(filters.theme));
+    return out;
+  }
+
+  /** publishedAt order, then filters, then the 15 cap when the query is empty. */
+  function newestSelection(filters) {
+    let list = publishedSongs().filter((song) => onYoutubeChart(song, "新歌"));
+    list.sort((a, b) => chartCompare(a, b, "新歌"));
+    list = applyListFilters(list, filters);
     const suggestPool = list.slice();
-    if (q) list = list.filter((s) => relevanceScore(s, q) > 0);
+    if (filters.q) {
+      list = list.filter((song) => relevanceScore(song, filters.q) > 0);
+      list = sortSongs(list, "新歌", filters.q);
+      return { list, suggestPool, capped: false };
+    }
+    return { list: list.slice(0, NEW_SONG_LIMIT), suggestPool, capped: true };
+  }
 
-    list = sortSongs(list, chart, q);
+  function hottestSelection(filters) {
+    let list = publishedSongs().filter((song) => onYoutubeChart(song, "最熱"));
+    list = applyListFilters(list, filters);
+    const suggestPool = list.slice();
+    if (filters.q) list = list.filter((song) => relevanceScore(song, filters.q) > 0);
+    list = sortSongs(list, "最熱", filters.q);
+    return { list, suggestPool };
+  }
+
+  function exploreSearchSelection(filters) {
+    let list = publishedSongs().filter((song) => song.links && song.links.youtube);
+    list = applyListFilters(list, filters);
+    const suggestPool = list.slice();
+    list = list.filter((song) => relevanceScore(song, filters.q) > 0);
+    list = sortSongs(list, "最熱", filters.q);
+    return { list, suggestPool };
+  }
+
+  function liveSuffixText() {
+    if (liveStatsMeta.status !== "ok" && liveStatsMeta.status !== "fallback") return "";
+    return liveStatsMeta.message ? " · " + liveStatsMeta.message : "";
+  }
+
+  function heroYearTheme(song) {
+    const bits = [];
+    const iso = youtubePublishedAt(song);
+    if (iso) {
+      const year = new Date(iso).getFullYear();
+      if (year) bits.push(String(year));
+    }
+    const theme =
+      (song.themes || []).find((item) => item && item !== "敬拜" && item !== "讚美") ||
+      (song.themes || [])[0];
+    if (theme) bits.push(theme);
+    return bits;
+  }
+
+  function listenAmberHtml(song, extraAttr) {
+    const listen = preferListen(song);
+    if (!listen) return "";
+    const meta = window.PLATFORM_META[listen.platform];
+    const label = meta ? meta.label : "平台";
+    return (
+      '<a class="btn btn-amber" href="' +
+      esc(listen.url) +
+      '" target="_blank" rel="noopener noreferrer" ' +
+      (extraAttr || "") +
+      ">" +
+      iconSvg("play") +
+      " 於 " +
+      esc(label) +
+      " 收聽</a>"
+    );
+  }
+
+  function filmCardHtml(song) {
+    const [c1, c2] = coverColors(song);
+    const url = (song.coverUrl || "").trim();
+    const tags = orderedTags(song)
+      .slice(0, 2)
+      .map((id) => '<span class="tag-chip">' + esc(TAG_LABEL[id]) + "</span>")
+      .join("");
+    const img = url
+      ? '<img class="film-img" src="' +
+        esc(url) +
+        '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()"/>'
+      : "";
+    return (
+      '<a class="film-card" role="listitem" href="' +
+      esc(songHref(song.id)) +
+      '"><div class="film-art" style="background:linear-gradient(135deg,' +
+      esc(c1) +
+      "," +
+      esc(c2) +
+      ')">' +
+      img +
+      '<span class="film-glyph" aria-hidden="true">' +
+      esc(coverInitials(song)) +
+      "</span></div><div class=\"film-title\">" +
+      esc(song.title) +
+      '</div><div class="film-sub">' +
+      esc(song.artist || "") +
+      "</div>" +
+      (tags ? '<div class="film-tags">' + tags + "</div>" : "") +
+      "</a>"
+    );
+  }
+
+  function filmStripHtml(songs, label) {
+    if (!songs.length) return "";
+    return (
+      '<div class="film-strip" role="list" aria-label="' +
+      esc(label) +
+      '">' +
+      songs.map(filmCardHtml).join("") +
+      "</div>"
+    );
+  }
+
+  function flowGridHtml(songs, chart, label, showRank) {
+    if (!songs.length) {
+      return '<div class="empty"><p>沒有符合條件的詩歌。</p><button type="button" class="btn btn-primary" id="clear-all-filters">清除全部條件</button></div>';
+    }
+    return (
+      '<div class="chart-flow" role="list" aria-label="' +
+      esc(label) +
+      '">' +
+      songs
+        .map((song, index) => songCardHtml(song, index, chart, { flow: true, showRank: !!showRank }))
+        .join("") +
+      "</div>"
+    );
+  }
+
+  function sectionHeadHtml(title, note, linkHref, linkLabel) {
+    const extra = note ? '<span class="section-note">' + esc(note) + "</span>" : "";
+    const link = linkHref
+      ? '<a class="row-link" href="' + esc(linkHref) + '">' + esc(linkLabel || "") + "</a>"
+      : "";
+    return (
+      '<div class="section-head"><h2>' +
+      esc(title) +
+      '</h2><div class="section-tools">' +
+      extra +
+      link +
+      "</div></div>"
+    );
+  }
+
+  function filtersHtml(lang, ministry, tag, theme, ministries, themes) {
+    const langs = [...new Set(publishedSongs().flatMap((song) => song.languages || []))].sort();
+    const chip = (filter, value, label, on) =>
+      '<button type="button" class="filter-chip' +
+      (on ? " active" : "") +
+      '" data-filter="' +
+      esc(filter) +
+      '" data-value="' +
+      esc(value) +
+      '" role="listitem">' +
+      esc(label) +
+      "</button>";
+    return (
+      '<div class="filter-menus" aria-label="篩選">' +
+      '<div class="filter-group"><span class="filter-label">語言</span><div class="chip-bar" role="list">' +
+      chip("lang", "", "全部", !lang) +
+      langs.map((item) => chip("lang", item, displayLang(item), lang === item)).join("") +
+      "</div></div>" +
+      '<div class="filter-group"><span class="filter-label">機構</span><div class="chip-bar" role="list">' +
+      chip("ministry", "", "全部", !ministry) +
+      ministries.map((item) => chip("ministry", item, item, ministry === item)).join("") +
+      "</div></div>" +
+      '<div class="filter-group"><span class="filter-label">類型</span><div class="chip-bar" role="list">' +
+      chip("tag", "", "全部", !tag) +
+      TAG_DEFS.map((item) => chip("tag", item.id, item.label, tag === item.id)).join("") +
+      "</div></div>" +
+      '<div class="filter-group"><span class="filter-label">主題</span><div class="chip-bar" role="list">' +
+      chip("theme", "", "全部", !theme) +
+      themes.map((item) => chip("theme", item, item, theme === item)).join("") +
+      "</div></div></div>"
+    );
+  }
+
+  function emptyFiltersHtml() {
+    return '<div class="empty"><p>沒有符合條件的詩歌。</p><button type="button" class="btn btn-primary" id="clear-all-filters">清除全部條件</button></div>';
+  }
+
+  function heroHtml(song) {
+    const [c1, c2] = coverColors(song);
+    const cover = (song.coverUrl || "").trim();
+    const metaBits = heroYearTheme(song);
+    const listen = listenAmberHtml(song, 'data-feature-out="' + esc(song.id) + '"');
+    const secondary =
+      '<a class="btn btn-ghost" href="' + esc(songHref(song.id)) + '">睇詳情</a>';
+    return (
+      '<section class="cinema-hero" style="--hero-a:' +
+      esc(c1) +
+      ";--hero-b:" +
+      esc(c2) +
+      '"><div class="hero-visual">' +
+      (cover
+        ? '<img class="hero-bg-img" src="' +
+          esc(cover) +
+          '" alt="" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()"/>'
+        : "") +
+      '<span class="hero-watermark" aria-hidden="true">' +
+      esc(coverInitials(song)) +
+      '</span></div><div class="hero-scrim" aria-hidden="true"></div><div class="hero-copy"><p class="hero-tag">今日推介</p><h1>' +
+      esc(song.title) +
+      '</h1><p class="hero-meta"><strong>' +
+      esc(song.artist || "") +
+      "</strong>" +
+      (metaBits.length ? " · " + esc(metaBits.join(" · ")) : "") +
+      '</p><div class="hero-actions">' +
+      (listen || secondary) +
+      (listen ? secondary : "") +
+      "</div></div></section>"
+    );
+  }
+
+  function renderHome() {
+    const qs = hashQuery();
+    const mode = homeModeFromQuery(qs.get("chart") || "");
+    const q = (qs.get("q") || "").trim();
+    const filters = {
+      q,
+      lang: qs.get("lang") || "",
+      ministry: qs.get("ministry") || "",
+      tag: qs.get("tag") || "",
+      theme: qs.get("theme") || ""
+    };
     const ministryOrder = ["讚美之泉", "讚美之泉兒童", "約書亞樂團", "基恩敬拜", "小羊詩歌", "HKACM", "敬拜者使團"];
-    const ministrySet = new Set(publishedSongs().map((s) => s.artist));
+    const ministrySet = new Set(publishedSongs().map((song) => song.artist));
     const ministries = [
-      ...ministryOrder.filter((m) => ministrySet.has(m)),
-      ...[...ministrySet].filter((m) => !ministryOrder.includes(m)).sort()
+      ...ministryOrder.filter((name) => ministrySet.has(name)),
+      ...[...ministrySet].filter((name) => !ministryOrder.includes(name)).sort()
     ];
     const themes = themeOptions();
-    const featured = !searching ? list[0] || null : null;
-    homeGrid = { songs: list, chart, suggestPool };
+    const filterBar = filtersHtml(filters.lang, filters.ministry, filters.tag, filters.theme, ministries, themes);
+    const copyBtn =
+      '<button type="button" class="btn btn-sm btn-ghost" id="copy-home-link">複製連結</button>';
+    const live = liveSuffixText();
 
-    const tabs = ["新歌", "最熱"]
-      .map(
-        (t) =>
-          `<button class="tab ${t === chart ? "active" : ""}" data-chart="${esc(t)}">${esc(t)}</button>`
-      )
-      .join("");
+    if (mode === "探索" && !q) {
+      const picks = dailyPicks(hkDateKey());
+      const newest = newestSelection(filters);
+      const hottest = hottestSelection(filters);
+      const hotPreview = hottest.list.slice(0, 5);
+      homeGrid = {
+        songs: [],
+        chart: "最熱",
+        suggestPool: applyListFilters(
+          publishedSongs().filter((song) => song.links && song.links.youtube),
+          filters
+        ),
+        virtual: false
+      };
+      const spotlight = picks.length
+        ? '<div id="daily-spotlight">' +
+          heroHtml(picks[0]) +
+          '<section class="home-block">' +
+          sectionHeadHtml("每日推介", "") +
+          filmStripHtml(picks, "每日推介") +
+          "</section></div>"
+        : '<div id="daily-spotlight"></div>';
+      const newBlock =
+        '<section class="home-block">' +
+        sectionHeadHtml("新歌", "只顯示最新 " + NEW_SONG_LIMIT + " 首", homeHref({ chart: "新歌" }), "新歌") +
+        filterBar +
+        filmStripHtml(newest.list, "新歌") +
+        (newest.list.length ? "" : emptyFiltersHtml()) +
+        "</section>";
+      const hotBlock =
+        '<section class="home-block">' +
+        sectionHeadHtml(
+          "最熱",
+          (live || "").replace(/^ · /, ""),
+          homeHref({ chart: "最熱" }),
+          "最熱榜"
+        ) +
+        (hotPreview.length
+          ? '<div class="hot-preview" role="list" aria-label="最熱">' +
+            hotPreview
+              .map((song, index) => songCardHtml(song, index, "最熱", { flow: true, showRank: true }))
+              .join("") +
+            "</div>"
+          : emptyFiltersHtml()) +
+        '<div class="section-tools" style="justify-content:flex-end;margin-top:8px">' +
+        copyBtn +
+        "</div></section>";
+      return shell(spotlight + newBlock + hotBlock, { hero: !!picks.length });
+    }
 
-    const liveSuffix =
-      liveStatsMeta.status === "ok" || liveStatsMeta.status === "fallback"
-        ? liveStatsMeta.message
-          ? " · " + liveStatsMeta.message
-          : ""
-        : "";
-    const countLabel = searching
-      ? "按相關度 · 共 " + list.length + " 首" + liveSuffix
-      : list.length + " 首" + liveSuffix;
-    const liveNote = `<span class="muted section-count" style="font-size:13px">${esc(countLabel)}</span>`;
+    if (mode === "新歌") {
+      const newest = newestSelection(filters);
+      const capped = newest.capped;
+      homeGrid = {
+        songs: newest.list,
+        chart: "新歌",
+        suggestPool: newest.suggestPool,
+        virtual: !capped && newest.list.length > 0
+      };
+      const note = capped
+        ? "只顯示最新 " + NEW_SONG_LIMIT + " 首"
+        : "按相關度 · 共 " + newest.list.length + " 首" + live;
+      const body = capped
+        ? newest.list.length
+          ? flowGridHtml(newest.list, "新歌", "新歌", false)
+          : emptyFiltersHtml()
+        : newest.list.length
+          ? '<div class="chart-grid" id="chart-grid" role="list" aria-label="新歌搜尋"></div>'
+          : emptyFiltersHtml();
+      return shell(
+        '<div class="section-head"><h2>' +
+          esc(q ? "搜尋結果" : "新歌") +
+          '</h2><div class="section-tools"><span class="section-note">' +
+          esc(note) +
+          "</span>" +
+          copyBtn +
+          "</div></div>" +
+          filterBar +
+          body,
+        {}
+      );
+    }
 
-    const featureHtml = featured
-      ? (() => {
-          const listen = preferListen(featured);
-          const [c1, c2] = coverColors(featured);
-          const cover = (featured.coverUrl || "").trim();
-          const kicker = chart + " · 第 1 名";
-          const action = listen
-            ? `<a class="btn btn-play" href="${esc(listen.url)}" target="_blank" rel="noopener noreferrer" data-feature-out="${esc(featured.id)}">${iconSvg("play")} 於 ${esc(window.PLATFORM_META[listen.platform].label)} 收聽</a>`
-            : `<a class="btn btn-glass" href="${esc(songHref(featured.id))}">查看詳情</a>`;
-          return `
-          <section class="poster hero-feature" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)}">
-            <div class="hero-visual">
-              ${
-                cover
-                  ? `<img class="hero-bg-img" src="${esc(cover)}" alt="" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()"/>`
-                  : ""
-              }
-            </div>
-            <div class="hero-scrim" aria-hidden="true"></div>
-            <a class="hero-hit" href="${esc(songHref(featured.id))}" tabindex="-1" aria-hidden="true"></a>
-            <div class="hero-content">
-              <p class="hero-kicker"><span class="glass-pill">${esc(kicker)}</span></p>
-              <h1><a href="${esc(songHref(featured.id))}">${esc(featured.title)}</a></h1>
-              <p class="hero-artist">${esc(featured.artist || "")}</p>
-              <div class="hero-actions">${action}</div>
-            </div>
-          </section>`;
-        })()
-      : "";
-
-    const heading = searching ? "搜尋結果" : chart;
-    const grid = list.length
-      ? `<div class="chart-grid" id="chart-grid" role="list" aria-label="${esc(heading)}"></div>`
-      : `<div class="empty"><p>沒有符合條件的詩歌。</p><button type="button" class="btn btn-primary" id="clear-all-filters">清除全部條件</button></div>`;
-
+    const hottest = mode === "探索" ? exploreSearchSelection(filters) : hottestSelection(filters);
+    const heading = q ? "搜尋結果" : "最熱";
+    const note = q
+      ? "按相關度 · 共 " + hottest.list.length + " 首" + live
+      : hottest.list.length + " 首" + live;
+    homeGrid = {
+      songs: hottest.list,
+      chart: mode === "探索" ? "最熱" : "最熱",
+      suggestPool: hottest.suggestPool,
+      virtual: hottest.list.length > 0
+    };
+    const body = hottest.list.length
+      ? '<div class="chart-grid" id="chart-grid" role="list" aria-label="' + esc(heading) + '"></div>'
+      : emptyFiltersHtml();
     return shell(
-      `
-      ${featureHtml}
-
-      <div class="section-head">
-        <h2>${esc(heading)}</h2>
-        <div class="section-tools">
-          ${liveNote}
-          <button type="button" class="btn btn-sm btn-ghost" id="copy-home-link">複製連結</button>
-        </div>
-      </div>
-
-      <div class="toolbar">
-        <div class="tabs" id="chart-tabs" aria-label="榜單">${tabs}</div>
-        <div class="toolbar-row">
-          <div class="search-box">
-            <span class="icon">${iconSvg("search")}</span>
-            <input id="search-input" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggest" placeholder="搜尋歌名、機構、主題…" value="${esc(q)}" autocomplete="off" />
-            <ul id="search-suggest" class="search-suggest" role="listbox" hidden></ul>
-          </div>
-        </div>
-        <div class="filter-menus" aria-label="篩選">
-          <div class="filter-group">
-            <span class="filter-label">語言</span>
-            <div class="chip-bar" id="filter-lang-bar" role="list">
-              <button type="button" class="filter-chip ${!lang ? "active" : ""}" data-filter="lang" data-value="" role="listitem">全部</button>
-              ${[...new Set(publishedSongs().flatMap((s) => s.languages || []))]
-                .sort()
-                .map(
-                  (l) =>
-                    `<button type="button" class="filter-chip ${lang === l ? "active" : ""}" data-filter="lang" data-value="${esc(l)}" role="listitem">${esc(displayLang(l))}</button>`
-                )
-                .join("")}
-            </div>
-          </div>
-          <div class="filter-group">
-            <span class="filter-label">機構</span>
-            <div class="chip-bar" id="filter-ministry-bar" role="list">
-              <button type="button" class="filter-chip ${!ministry ? "active" : ""}" data-filter="ministry" data-value="" role="listitem">全部</button>
-              ${ministries
-                .map(
-                  (m) =>
-                    `<button type="button" class="filter-chip ${ministry === m ? "active" : ""}" data-filter="ministry" data-value="${esc(m)}" role="listitem">${esc(m)}</button>`
-                )
-                .join("")}
-            </div>
-          </div>
-          <div class="filter-group">
-            <span class="filter-label">類型</span>
-            <div class="chip-bar" id="filter-tag-bar" role="list">
-              <button type="button" class="filter-chip ${!tag ? "active" : ""}" data-filter="tag" data-value="" role="listitem">全部</button>
-              ${TAG_DEFS.map(
-                (item) =>
-                  `<button type="button" class="filter-chip ${tag === item.id ? "active" : ""}" data-filter="tag" data-value="${esc(item.id)}" role="listitem">${esc(item.label)}</button>`
-              ).join("")}
-            </div>
-          </div>
-          <div class="filter-group">
-            <span class="filter-label">主題</span>
-            <div class="chip-bar" id="filter-theme-bar" role="list">
-              <button type="button" class="filter-chip ${!theme ? "active" : ""}" data-filter="theme" data-value="" role="listitem">全部</button>
-              ${themes
-                .map(
-                  (item) =>
-                    `<button type="button" class="filter-chip ${theme === item ? "active" : ""}" data-filter="theme" data-value="${esc(item)}" role="listitem">${esc(item)}</button>`
-                )
-                .join("")}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      ${grid}
-    `,
-      "home"
+      '<div class="section-head"><h2>' +
+        esc(heading) +
+        '</h2><div class="section-tools"><span class="section-note">' +
+        esc(note) +
+        "</span>" +
+        copyBtn +
+        "</div></div>" +
+        filterBar +
+        body,
+      {}
     );
   }
 
@@ -1405,34 +1740,38 @@
       </section>`;
     }
 
+    const detailMeta = heroYearTheme(song);
+    const detailListen = primary
+      ? `<a class="btn btn-amber" href="${esc(primary.url)}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${esc(primary.platform)}">${iconSvg("play")} 於 ${esc(window.PLATFORM_META[primary.platform].label)} 收聽</a>`
+      : "";
+
     return shell(
       `
       <div class="detail-toolbar">
         <a class="back-link" href="${esc(directoryHref())}">${iconSvg("back")} 返回目錄</a>
         <button type="button" class="btn btn-sm btn-ghost" id="copy-song-link">複製連結</button>
       </div>
-      <section class="poster detail-poster" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)};--hero-glow:${esc(c1)}55">
+      <section class="cinema-hero detail-hero" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)}">
         <div class="hero-visual">
           ${
             cover
               ? `<img class="hero-bg-img" src="${esc(cover)}" alt="" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()"/>`
               : ""
           }
+          <span class="hero-watermark" aria-hidden="true">${esc(coverInitials(song))}</span>
         </div>
         <div class="hero-scrim" aria-hidden="true"></div>
-        <div class="hero-content">
-          <div class="hero-meta-row">${langChips(song.languages)} ${tagChipSpans(song)} ${themeChips}</div>
+        <div class="hero-copy">
           <h1>${esc(song.title)}</h1>
-          <p class="sub"><strong>${esc(song.artist)}</strong> · 來源：${esc(sourceLabel(song.source))}</p>
-          ${
-            primary
-              ? `<div class="hero-actions"><a class="btn btn-play" href="${esc(primary.url)}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${esc(primary.platform)}">${iconSvg("play")} 於 ${esc(window.PLATFORM_META[primary.platform].label)} 收聽</a></div>`
-              : ""
-          }
+          <p class="hero-meta"><strong>${esc(song.artist)}</strong> · 來源：${esc(sourceLabel(song.source))}${detailMeta.length ? " · " + esc(detailMeta.join(" · ")) : ""}</p>
+          ${detailListen ? `<div class="hero-actions">${detailListen}</div>` : ""}
         </div>
       </section>
 
-      ${listenPanel}
+      <section class="panel">
+        <div class="detail-chips">${langChips(song.languages)} ${tagChipSpans(song)} ${themeChips}</div>
+        ${listenPanel.replace('<section class="panel glass-panel">', "").replace("</section>", "")}
+      </section>
 
       <section class="panel">
         <h2>YouTube 觀看</h2>
@@ -1704,10 +2043,47 @@
     };
   }
 
-  function bindHome() {
-    document.querySelectorAll("#chart-tabs .tab").forEach((btn) => {
-      btn.addEventListener("click", () => setHomeQuery({ chart: btn.dataset.chart, platform: null }));
-    });
+  function bindShell() {
+    const bar = document.querySelector(".topbar");
+    if (bar) bar.classList.toggle("is-stuck", (window.scrollY || 0) > 12);
+    if (!bindShell.scrollBound) {
+      bindShell.scrollBound = true;
+      window.addEventListener(
+        "scroll",
+        () => {
+          const el = document.querySelector(".topbar");
+          if (!el) return;
+          el.classList.toggle("is-stuck", (window.scrollY || 0) > 12);
+        },
+        { passive: true }
+      );
+    }
+    const today = document.getElementById("nav-today");
+    if (today) {
+      today.addEventListener("click", (event) => {
+        event.preventDefault();
+        pendingScrollId = "daily-spotlight";
+        const bare = !location.hash || location.hash === "#" || location.hash === "#/";
+        if (bare) {
+          const el = document.getElementById("daily-spotlight");
+          pendingScrollId = null;
+          if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        } else {
+          location.hash = "#/";
+        }
+      });
+    }
+    const tabSearch = document.getElementById("tab-search");
+    if (tabSearch) {
+      tabSearch.addEventListener("click", () => {
+        searchOpen = true;
+        const shellEl = document.querySelector(".app-shell");
+        if (shellEl) shellEl.classList.add("search-open");
+        tabSearch.classList.add("active");
+        const input = document.getElementById("search-input");
+        if (input) input.focus();
+      });
+    }
     const search = document.getElementById("search-input");
     if (search) {
       search.addEventListener("input", () => {
@@ -1718,8 +2094,11 @@
           setHomeQuery({ q: value });
         }, 220);
       });
-      bindSuggest(search, (homeGrid && homeGrid.suggestPool) || []);
+      bindSuggest(search, (homeGrid && homeGrid.suggestPool) || publishedSongs());
     }
+  }
+
+  function bindHome() {
     document.querySelectorAll(".filter-chip[data-filter]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const key = btn.dataset.filter;
@@ -1741,7 +2120,7 @@
         copyText(location.href).then((ok) => flashCopy(copyHome, ok));
       });
     }
-    if (homeGrid && document.getElementById("chart-grid")) {
+    if (homeGrid && homeGrid.virtual && document.getElementById("chart-grid")) {
       mountVirtualGrid(homeGrid.songs, homeGrid.chart);
     }
   }
@@ -1846,15 +2225,26 @@
     const app = document.getElementById("app");
     if (r.name === "home") {
       app.innerHTML = renderHome();
+      bindShell();
       bindHome();
     } else if (r.name === "song") {
       app.innerHTML = renderSong(r.id);
+      bindShell();
       bindSong(r.id);
     } else if (r.name === "submit") {
       app.innerHTML = renderSubmit();
+      bindShell();
     } else if (r.name === "admin") {
       app.innerHTML = renderAdmin();
+      bindShell();
       bindAdmin();
+    }
+    if (pendingScrollId) {
+      const target = document.getElementById(pendingScrollId);
+      pendingScrollId = null;
+      if (target && target.scrollIntoView) {
+        requestAnimationFrame(() => target.scrollIntoView({ behavior: "smooth", block: "start" }));
+      }
     }
     if (r.name === "submit") document.title = "上架暫停 — 詩歌目錄";
     else if (r.name === "admin") document.title = "管理 — 詩歌目錄";
