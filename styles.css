@@ -257,12 +257,12 @@ img { max-width: 100%; display: block; }
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0.28) 0%,
-    rgba(0, 0, 0, 0.05) 24%,
-    rgba(0, 0, 0, 0.5) 46%,
-    rgba(0, 0, 0, 0.84) 62%,
-    rgba(0, 0, 0, 0.93) 70%,
-    rgba(0, 0, 0, 0.97) 100%
+    rgba(0, 0, 0, 0.32) 0%,
+    rgba(0, 0, 0, 0.08) 18%,
+    rgba(0, 0, 0, 0.5) 32%,
+    rgba(0, 0, 0, 0.88) 46%,
+    rgba(0, 0, 0, 0.95) 70%,
+    rgba(0, 0, 0, 0.98) 100%
   );
 }
 .hero-hit {
@@ -302,7 +302,7 @@ img { max-width: 100%; display: block; }
   letter-spacing: -0.03em;
   line-height: 1.15;
   text-wrap: balance;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.8);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -662,10 +662,11 @@ img { max-width: 100%; display: block; }
   background: linear-gradient(
     180deg,
     rgba(0, 0, 0, 0.15) 0%,
-    rgba(0, 0, 0, 0.05) 28%,
-    rgba(0, 0, 0, 0.55) 48%,
-    rgba(0, 0, 0, 0.88) 68%,
-    rgba(0, 0, 0, 0.96) 100%
+    rgba(0, 0, 0, 0.05) 26%,
+    rgba(0, 0, 0, 0.55) 44%,
+    rgba(0, 0, 0, 0.9) 58%,
+    rgba(0, 0, 0, 0.96) 74%,
+    rgba(0, 0, 0, 0.98) 100%
   );
 }
 .song-card-rank {
