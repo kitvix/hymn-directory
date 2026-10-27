@@ -287,8 +287,8 @@
           </div>
           <main class="main">${content}</main>
           <footer class="footer">
-            V1 原型 · 榜單數據來自官方頻道觀看 · 出站：YouTube Music／YouTube／Apple／Spotify／KKBOX · 自助上架暫停 · 唔託管音檔 ·
-            <a href="#/admin">管理員</a>
+            榜單按官方 YouTube 頻道觀看次數排序。本站提供各平台收聽連結，不託管音檔。公開上架暫未開放。
+            <a href="#/admin">管理</a>
           </footer>
         </div>
         <nav class="bottom-nav" aria-label="底部選單">
@@ -299,15 +299,258 @@
     `;
   }
 
-  function sortSongs(list, chart) {
-    const arr = list.slice();
-    if (chart === "新歌") {
-      return arr.sort(
-        (a, b) => new Date(youtubePublishedAt(b)) - new Date(youtubePublishedAt(a))
-      );
+  const HOME_QUERY_KEYS = ["q", "lang", "ministry", "chart", "tag"];
+  const TAG_DEFS = [
+    { id: "accompaniment", label: "伴奏" },
+    { id: "subtitle", label: "字幕" },
+    { id: "shorts", label: "Shorts" },
+    { id: "medley", label: "串燒" }
+  ];
+  const TAG_LABEL = {
+    accompaniment: "伴奏",
+    subtitle: "字幕",
+    shorts: "Shorts",
+    medley: "串燒"
+  };
+  const TAG_RANK = { exact: 6, start: 5, boundary: 4, artist: 3, theme: 2, substring: 1 };
+
+  function hashQuery() {
+    const hash = location.hash || "";
+    const i = hash.indexOf("?");
+    return i >= 0 ? new URLSearchParams(hash.slice(i + 1)) : new URLSearchParams();
+  }
+
+  function preservedHomeQuery() {
+    const qs = hashQuery();
+    const out = new URLSearchParams();
+    HOME_QUERY_KEYS.forEach((key) => {
+      const value = qs.get(key);
+      if (value) out.set(key, value);
+    });
+    return out;
+  }
+
+  function withQuery(path, params) {
+    const qstr = params.toString();
+    return path + (qstr ? "?" + qstr : "");
+  }
+
+  function directoryHref() {
+    return withQuery("#/", preservedHomeQuery());
+  }
+
+  function songHref(id) {
+    return withQuery("#/song/" + id, preservedHomeQuery());
+  }
+
+  function visibleBlurb(text) {
+    const value = String(text || "").trim();
+    if (!value || /官方頻道自動收錄/.test(value)) return "";
+    return value;
+  }
+
+  function isCjkChar(ch) {
+    if (!ch) return false;
+    const code = ch.codePointAt(0);
+    return (code >= 0x3400 && code <= 0x9fff) || (code >= 0xf900 && code <= 0xfaff);
+  }
+
+  function isAlnumChar(ch) {
+    return !!ch && /[A-Za-z0-9]/.test(ch);
+  }
+
+  function isBoundaryChar(ch) {
+    return !ch || (!isCjkChar(ch) && !isAlnumChar(ch));
+  }
+
+  function hasBoundary(text, index, len) {
+    const prev = index > 0 ? text[index - 1] : "";
+    const next = index + len < text.length ? text[index + len] : "";
+    return isBoundaryChar(prev) && isBoundaryChar(next);
+  }
+
+  function normalizeText(value) {
+    return String(value || "")
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function queryAllowsBroad(query) {
+    let cjk = 0;
+    let latin = 0;
+    for (const ch of query) {
+      if (isCjkChar(ch)) cjk += 1;
+      else if (isAlnumChar(ch)) latin += 1;
     }
-    // 最熱：總觀看
-    return arr.sort((a, b) => youtubeViews(b) - youtubeViews(a));
+    if (cjk >= 2) return true;
+    return cjk === 0 && latin >= 3;
+  }
+
+  function findBounded(text, query) {
+    if (!query) return false;
+    let index = 0;
+    while ((index = text.indexOf(query, index)) !== -1) {
+      if (hasBoundary(text, index, query.length)) return true;
+      index += query.length;
+    }
+    return false;
+  }
+
+  /** Title may start with a single CJK char; Latin prefixes must end on a boundary. */
+  function startsAsTitle(text, query) {
+    if (!text.startsWith(query)) return false;
+    if (query.length === 1 && isCjkChar(query)) return true;
+    const next = text[query.length] || "";
+    if (!next) return true;
+    if (isAlnumChar(query[query.length - 1]) && isAlnumChar(next)) return false;
+    return true;
+  }
+
+  function titleSegments(text) {
+    const chunks = text.split(/[/／|｜·•・]+|\s+[-–—－]\s+|[（(]|[)）【】\[\]]/);
+    const segments = [];
+    chunks.forEach((chunk) => {
+      const piece = chunk.replace(/^[-–—－\s]+|[-–—－\s]+$/g, "").trim();
+      if (!piece) return;
+      const bilingual = piece.match(
+        /^([\u3400-\u9fff\uf900-\ufaff]+)\s+([a-z0-9].*)$/i
+      );
+      if (bilingual) {
+        segments.push(bilingual[1].trim(), bilingual[2].trim());
+      } else {
+        segments.push(piece);
+      }
+    });
+    return segments;
+  }
+
+  function titleLevel(text, query) {
+    const normalized = normalizeText(text);
+    if (!normalized || !query) return 0;
+    if (normalized === query) return TAG_RANK.exact;
+    if (titleSegments(normalized).some((segment) => segment === query)) return TAG_RANK.start;
+    if (startsAsTitle(normalized, query)) return TAG_RANK.start;
+    if (findBounded(normalized, query)) return TAG_RANK.boundary;
+    if (queryAllowsBroad(query) && normalized.includes(query)) return TAG_RANK.substring;
+    return 0;
+  }
+
+  function fieldLevel(text, query, mode) {
+    const normalized = normalizeText(text);
+    if (!normalized || !query) return 0;
+    const rank = mode === "artist" ? TAG_RANK.artist : TAG_RANK.theme;
+    if (normalized === query) return rank;
+    if (titleSegments(normalized).some((segment) => segment === query)) return rank;
+    if (query.length === 1 && isCjkChar(query)) {
+      return findBounded(normalized, query) ? rank : 0;
+    }
+    if (startsAsTitle(normalized, query) || findBounded(normalized, query)) return rank;
+    if (mode === "artist" && queryAllowsBroad(query) && normalized.includes(query)) {
+      return TAG_RANK.substring;
+    }
+    return 0;
+  }
+
+  function titleCandidates(song) {
+    const titles = [];
+    if (song.title) titles.push(song.title);
+    if (Array.isArray(song.aliases)) titles.push(...song.aliases.filter(Boolean));
+    else if (typeof song.aliases === "string" && song.aliases) titles.push(song.aliases);
+    if (typeof song.alias === "string" && song.alias) titles.push(song.alias);
+    return titles;
+  }
+
+  function relevanceScore(song, rawQuery) {
+    const query = normalizeText(rawQuery);
+    if (!query) return 0;
+    let best = 0;
+    titleCandidates(song).forEach((title) => {
+      best = Math.max(best, titleLevel(title, query));
+    });
+    if (song.artist) best = Math.max(best, fieldLevel(song.artist, query, "artist"));
+    (song.themes || []).forEach((theme) => {
+      best = Math.max(best, fieldLevel(theme, query, "theme"));
+    });
+    return best;
+  }
+
+  function chartCompare(a, b, chart) {
+    if (chart === "新歌") {
+      return new Date(youtubePublishedAt(b)) - new Date(youtubePublishedAt(a));
+    }
+    return youtubeViews(b) - youtubeViews(a);
+  }
+
+  function sortSongs(list, chart, query) {
+    const arr = list.slice();
+    if (query) {
+      return arr.sort((a, b) => {
+        const byRelevance = relevanceScore(b, query) - relevanceScore(a, query);
+        if (byRelevance) return byRelevance;
+        return chartCompare(a, b, chart);
+      });
+    }
+    return arr.sort((a, b) => chartCompare(a, b, chart));
+  }
+
+  function isMultiTitle(title) {
+    const parts = String(title || "")
+      .replace(/\d\s*[/／]\s*\d/g, " ")
+      .split(/[/／]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length < 2) return false;
+    const cjkParts = parts.filter(
+      (part) => (part.match(/[\u3400-\u9fff\uf900-\ufaff]/g) || []).length >= 2
+    );
+    return cjkParts.length >= 2;
+  }
+
+  function inferTags(title, meta) {
+    const rawTitle = String(title || "");
+    const extra =
+      (meta && (meta.description || meta.originalTitle || "")) || "";
+    const text = rawTitle + "\n" + String(extra);
+    const tags = [];
+    if (/(?<!無)伴奏|伴唱|karaoke|卡拉\s*ok|off\s*vocal|純音樂/i.test(text)) {
+      tags.push("accompaniment");
+    }
+    if (/中英字幕|字幕|lyric\s*video|歌詞版/i.test(text)) tags.push("subtitle");
+    if (/#\s*shorts|(?:^|[^a-z0-9])shorts(?:[^a-z0-9]|$)/i.test(text)) tags.push("shorts");
+    if (/串燒|medley/i.test(text) || isMultiTitle(rawTitle)) tags.push("medley");
+    return tags;
+  }
+
+  function assignInferredTags() {
+    state.songs.forEach((song) => {
+      if (Array.isArray(song.tags)) return;
+      song.tags = inferTags(song.title, song);
+    });
+  }
+
+  function orderedTags(song) {
+    const have = new Set(song.tags || []);
+    return TAG_DEFS.map((tag) => tag.id).filter((id) => have.has(id));
+  }
+
+  function tagChipSpans(song) {
+    return orderedTags(song)
+      .map((id) => `<span class="chip chip-tag">${esc(TAG_LABEL[id])}</span>`)
+      .join("");
+  }
+
+  function tagChipsHtml(song, shifted) {
+    const tags = orderedTags(song);
+    if (!tags.length) return "";
+    return (
+      '<div class="song-card-tags' +
+      (shifted ? " has-rank" : "") +
+      '">' +
+      tags.map((id) => '<span class="tag-chip">' + esc(TAG_LABEL[id]) + "</span>").join("") +
+      "</div>"
+    );
   }
 
   function scoreLabel(song, chart) {
@@ -364,8 +607,8 @@
     const play = listen
       ? '<a class="play-out song-card-play" href="' +
         esc(listen.url) +
-        '" target="_blank" rel="noopener noreferrer" title="出站收聽" aria-label="' +
-        esc("出站收聽：" + (song.title || "")) +
+        '" target="_blank" rel="noopener noreferrer" title="前往收聽" aria-label="' +
+        esc("前往收聽：" + (song.title || "")) +
         '" data-row-out="' +
         esc(song.id) +
         '">' +
@@ -387,8 +630,8 @@
       '"' +
       styleAttr +
       ">" +
-      '<a class="song-card-open" href="#/song/' +
-      esc(song.id) +
+      '<a class="song-card-open" href="' +
+      esc(songHref(song.id)) +
       '" aria-label="' +
       esc(label) +
       '">' +
@@ -408,6 +651,7 @@
       "</p>" +
       meta +
       "</div></a>" +
+      tagChipsHtml(song, showRank) +
       rankHtml +
       play +
       "</article>"
@@ -533,21 +777,15 @@
     const q = (qs.get("q") || "").trim();
     const lang = qs.get("lang") || "";
     const ministry = qs.get("ministry") || "";
+    const tag = qs.get("tag") || "";
 
     let list = publishedSongs().filter((s) => onYoutubeChart(s, chart));
-    if (q) {
-      const qq = q.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.title.toLowerCase().includes(qq) ||
-          s.artist.toLowerCase().includes(qq) ||
-          (s.themes || []).some((t) => t.includes(q))
-      );
-    }
+    if (q) list = list.filter((s) => relevanceScore(s, q) > 0);
     if (lang) list = list.filter((s) => (s.languages || []).includes(lang));
     if (ministry) list = list.filter((s) => s.artist === ministry);
+    if (tag) list = list.filter((s) => (s.tags || []).includes(tag));
 
-    list = sortSongs(list, chart);
+    list = sortSongs(list, chart, q);
     const ministryOrder = ["讚美之泉", "讚美之泉兒童", "約書亞樂團", "基恩敬拜", "小羊詩歌", "HKACM", "敬拜者使團"];
     const ministrySet = new Set(publishedSongs().map((s) => s.artist));
     const ministries = [
@@ -576,7 +814,8 @@
           const listen = preferListen(featured);
           const [c1, c2] = coverColors(featured);
           const cover = (featured.coverUrl || "").trim();
-          const blurb = featured.blurb || "一個目錄，聽齊華語詩歌。點掣跳去你慣用平台。";
+          const blurb = visibleBlurb(featured.blurb);
+          const kicker = q ? "按相關度" : chart + " · 第 1 名";
           return `
           <section class="poster hero-feature" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)}">
             <div class="hero-visual">
@@ -587,15 +826,16 @@
               }
             </div>
             <div class="hero-scrim" aria-hidden="true"></div>
-            <a class="hero-hit" href="#/song/${esc(featured.id)}" tabindex="-1" aria-hidden="true"></a>
+            <a class="hero-hit" href="${esc(songHref(featured.id))}" tabindex="-1" aria-hidden="true"></a>
             <div class="hero-content">
-              <p class="hero-kicker"><span class="glass-pill">${esc(chart)} · 第 1 名</span></p>
-              <h1><a href="#/song/${esc(featured.id)}">${esc(featured.title)}</a></h1>
+              <p class="hero-kicker"><span class="glass-pill">${esc(kicker)}</span></p>
+              <h1><a href="${esc(songHref(featured.id))}">${esc(featured.title)}</a></h1>
               <div class="hero-meta-row">
                 <span class="chip">${esc(featured.artist)}</span>
                 ${langChips(featured.languages)}
+                ${tagChipSpans(featured)}
               </div>
-              <p class="sub">${esc(blurb)}</p>
+              ${blurb ? `<p class="sub">${esc(blurb)}</p>` : ""}
               <div class="hero-actions">
                 ${
                   listen
@@ -609,16 +849,17 @@
         })()
       : "";
 
+    const heading = q ? "按相關度" : chart;
     const grid = list.length
-      ? `<div class="chart-grid" id="chart-grid" role="list" aria-label="${esc(chart)}榜"></div>`
-      : `<div class="empty">暫時冇符合條件嘅詩歌。試下換榜單或清篩選。</div>`;
+      ? `<div class="chart-grid" id="chart-grid" role="list" aria-label="${esc(heading)}"></div>`
+      : `<div class="empty"><p>沒有符合條件的詩歌。</p><button type="button" class="btn btn-primary" id="clear-all-filters">清除全部條件</button></div>`;
 
     return shell(
       `
       ${featureHtml}
 
       <div class="section-head">
-        <h2>${esc(chart)}</h2>
+        <h2>${esc(heading)}</h2>
         ${liveNote}
       </div>
 
@@ -656,6 +897,16 @@
                 .join("")}
             </div>
           </div>
+          <div class="filter-group">
+            <span class="filter-label">類型</span>
+            <div class="chip-bar" id="filter-tag-bar" role="list">
+              <button type="button" class="filter-chip ${!tag ? "active" : ""}" data-filter="tag" data-value="" role="listitem">全部</button>
+              ${TAG_DEFS.map(
+                (item) =>
+                  `<button type="button" class="filter-chip ${tag === item.id ? "active" : ""}" data-filter="tag" data-value="${esc(item.id)}" role="listitem">${esc(item.label)}</button>`
+              ).join("")}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -670,7 +921,7 @@
     if (!song || song.status !== "published") {
       return shell(
         `
-        <a class="back-link" href="#/">${iconSvg("back")} 返回目錄</a>
+        <a class="back-link" href="${esc(directoryHref())}">${iconSvg("back")} 返回目錄</a>
         <div class="empty">搵唔到呢首歌，可能尚未通過審核。</div>
       `,
         "home"
@@ -690,7 +941,6 @@
           <a class="listen-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${p}">
             <span class="logo ${m.className}">${iconSvg(iconName)}</span>
             <span>喺 ${esc(m.label)} 聽</span>
-            <span class="go">出站 →</span>
           </a>`;
       })
       .join("");
@@ -711,7 +961,7 @@
 
     return shell(
       `
-      <a class="back-link" href="#/">${iconSvg("back")} 返回目錄</a>
+      <a class="back-link" href="${esc(directoryHref())}">${iconSvg("back")} 返回目錄</a>
       <section class="poster detail-poster" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)};--hero-glow:${esc(c1)}55">
         <div class="hero-visual">
           ${
@@ -722,7 +972,7 @@
         </div>
         <div class="hero-scrim" aria-hidden="true"></div>
         <div class="hero-content">
-          <div class="hero-meta-row">${langChips(song.languages)} ${(song.themes || [])
+          <div class="hero-meta-row">${langChips(song.languages)} ${tagChipSpans(song)} ${(song.themes || [])
             .map((t) => `<span class="chip">${esc(t)}</span>`)
             .join("")}</div>
           <h1>${esc(song.title)}</h1>
@@ -738,8 +988,8 @@
       </section>
 
       <section class="panel glass-panel">
-        <h2>出站收聽</h2>
-        ${song.blurb ? `<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(song.blurb)}</p>` : ""}
+        <h2>收聽連結</h2>
+        ${visibleBlurb(song.blurb) ? `<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(visibleBlurb(song.blurb))}</p>` : ""}
         <div class="listen-row">${listenBtns || `<div class="alert alert-warn">暫時未有平台連結。</div>`}</div>
         <div class="vote-row">
           <button class="btn btn-sm" id="vote-useful">有用（${voteUseful}）</button>
@@ -767,7 +1017,7 @@
             <div class="prop"><span class="k">上傳日</span><span class="v mono">${esc(pub ? new Date(pub).toLocaleDateString("zh-HK") : "—")}</span></div>`;
           })()}
         </div>
-        <p class="muted" style="font-size:13px;margin-top:10px">YouTube Music／YouTube 均可出站；Apple Music／Spotify／KKBOX 只作出站聽歌連結，唔計入榜單。</p>
+        <p class="muted" style="font-size:13px;margin-top:10px">可前往 YouTube Music 或 YouTube；Apple Music、Spotify、KKBOX 僅提供收聽連結，不計入榜單。</p>
       </section>
 
       ${
@@ -836,7 +1086,7 @@
                     <span class="status-pill status-pending">pending</span>
                   </div>
                   <div class="muted" style="font-size:13px">${esc(s.artist)} · ${(s.languages || []).map(esc).join("／")} · ${esc(links || "無連結")}</div>
-                  <p style="font-size:13px;margin:8px 0 0">${esc(s.blurb || "")}</p>
+                  ${visibleBlurb(s.blurb) ? `<p style="font-size:13px;margin:8px 0 0">${esc(visibleBlurb(s.blurb))}</p>` : ""}
                   ${s.submitter_email ? `<p class="muted" style="font-size:12px;margin:6px 0 0">聯絡：${esc(s.submitter_email)}</p>` : ""}
                   <div class="admin-actions">
                     <button class="btn btn-sm btn-primary" data-action="approve">通過</button>
@@ -900,9 +1150,15 @@
       btn.addEventListener("click", () => {
         const key = btn.dataset.filter;
         const val = btn.dataset.value || "";
-        if (key === "lang" || key === "ministry") setHomeQuery({ [key]: val });
+        if (key === "lang" || key === "ministry" || key === "tag") setHomeQuery({ [key]: val });
       });
     });
+    const clearFilters = document.getElementById("clear-all-filters");
+    if (clearFilters) {
+      clearFilters.addEventListener("click", () => {
+        setHomeQuery({ q: "", lang: "", ministry: "", tag: "" });
+      });
+    }
     if (homeGrid && document.getElementById("chart-grid")) {
       mountVirtualGrid(homeGrid.songs, homeGrid.chart);
     }
@@ -985,6 +1241,7 @@
         if (confirm("確定重設為示範數據？本地待審／投票會清除。")) {
           localStorage.removeItem(STORAGE_KEY);
           state = loadState();
+          assignInferredTags();
           render();
         }
       });
@@ -992,6 +1249,7 @@
   }
 
   function render() {
+    assignInferredTags();
     teardownVirtual();
     const searchEl = document.getElementById("search-input");
     const restoreSearch = !!(searchEl && document.activeElement === searchEl);
@@ -1017,7 +1275,7 @@
           ? "管理 — 詩歌目錄"
           : r.name === "song"
             ? "詩歌詳情 — 詩歌目錄"
-            : "詩歌目錄 — 華語敬拜發現平台";
+            : "詩歌目錄 — 華語基督教詩歌";
     if (restoreSearch) {
       const input = document.getElementById("search-input");
       if (input) {
