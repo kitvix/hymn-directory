@@ -661,6 +661,8 @@
   /**
    * Keep only the visible chart rows in the DOM. The full list is thousands of
    * songs; mounting every cover freezes the page.
+   * Card size is measured once and reused until the grid width changes, and
+   * scroll only adds or removes rows outside the window.
    */
   function mountVirtualGrid(songs, chart) {
     teardownVirtual();
@@ -673,9 +675,18 @@
     }
 
     const GAP = 14;
-    let lastKey = "";
+    const pool = new Map();
+    let geom = null;
+    let gridTop = 0;
+    let lastStart = -1;
+    let lastEnd = -1;
+    let lastCols = 0;
+    let lastCardW = 0;
+    let lastCardH = 0;
+    let lastScrollY = window.scrollY || 0;
     let raf = 0;
     let retries = 0;
+    root.style.overflowAnchor = "none";
 
     function colsFor(width) {
       if (width < 520) return 1;
@@ -683,69 +694,137 @@
       return 3;
     }
 
-    function renderWindow() {
-      const width = root.clientWidth;
-      if (width < 8) {
-        if (retries < 8) {
-          retries += 1;
-          requestAnimationFrame(renderWindow);
-        }
-        return;
+    function documentTop(el) {
+      let y = 0;
+      let node = el;
+      while (node) {
+        y += node.offsetTop || 0;
+        node = node.offsetParent;
       }
-      retries = 0;
+      return y;
+    }
+
+    function computeGeom(width) {
       const cols = colsFor(width);
-      const cardW = Math.floor((width - GAP * (cols - 1)) / cols);
+      const cardW = Math.max(1, Math.floor((width - GAP * (cols - 1)) / cols));
       const cardH = Math.max(120, Math.round((cardW * 9) / 16));
       const stride = cardH + GAP;
       const totalRows = Math.ceil(songs.length / cols);
       const totalH = totalRows > 0 ? totalRows * stride - GAP : 0;
-      if (root.style.height !== totalH + "px") root.style.height = totalH + "px";
+      return { width, cols, cardW, cardH, stride, totalRows, totalH };
+    }
 
-      const topDoc = root.getBoundingClientRect().top + window.scrollY;
-      const viewTop = window.scrollY - topDoc;
-      const overscan = stride * 2;
+    function measure() {
+      let width = root.clientWidth;
+      if (width < 8) return null;
+      let next = computeGeom(width);
+      const applyHeight = (g) => {
+        const px = g.totalH + "px";
+        if (root.style.height !== px) root.style.height = px;
+      };
+      applyHeight(next);
+      const widthAfter = root.clientWidth;
+      if (widthAfter >= 8 && widthAfter !== width) {
+        next = computeGeom(widthAfter);
+        applyHeight(next);
+      }
+      gridTop = documentTop(root);
+      return next;
+    }
+
+    function overscanPx(g) {
+      const viewH = window.innerHeight || g.cardH;
+      return Math.max(g.stride * 6, Math.round(viewH * 3 + g.stride));
+    }
+
+    function renderWindow() {
+      if (!geom) {
+        geom = measure();
+        if (!geom) {
+          if (retries < 8) {
+            retries += 1;
+            raf = requestAnimationFrame(() => {
+              raf = 0;
+              renderWindow();
+            });
+          }
+          return;
+        }
+        retries = 0;
+      }
+
+      const { cols, cardW, cardH, stride, totalRows } = geom;
+      const viewH = window.innerHeight || cardH;
+      const viewTop = (window.scrollY || 0) - gridTop;
+      const overscan = overscanPx(geom);
       let startRow = Math.floor((viewTop - overscan) / stride);
-      let endRow = Math.ceil((viewTop + window.innerHeight + overscan) / stride);
+      let endRow = Math.ceil((viewTop + viewH + overscan) / stride);
       if (startRow < 0) startRow = 0;
       if (endRow > totalRows) endRow = totalRows;
       if (endRow < startRow) endRow = startRow;
+      const maxRows = Math.ceil((viewH + overscan * 2) / stride) + 1;
+      if (endRow - startRow > maxRows) endRow = Math.min(totalRows, startRow + maxRows);
+
       const start = startRow * cols;
       const end = Math.min(songs.length, endRow * cols);
-      const key = start + ":" + end + ":" + cols + ":" + cardW;
-      if (key === lastKey) return;
-      lastKey = key;
+      if (
+        start === lastStart &&
+        end === lastEnd &&
+        cols === lastCols &&
+        cardW === lastCardW &&
+        cardH === lastCardH
+      ) {
+        lastScrollY = window.scrollY || 0;
+        return;
+      }
 
-      const needed = new Set();
-      for (let i = start; i < end; i++) needed.add(songs[i].id);
-      root.querySelectorAll(":scope > .song-card").forEach((el) => {
-        if (!needed.has(el.dataset.id)) el.remove();
+      const reposition = cols !== lastCols || cardW !== lastCardW || cardH !== lastCardH;
+      const keep = new Set();
+      for (let i = start; i < end; i++) keep.add(songs[i].id);
+      const drop = [];
+      pool.forEach((el, id) => {
+        if (!keep.has(id)) drop.push(id);
       });
-      const have = new Map();
-      root.querySelectorAll(":scope > .song-card").forEach((el) => have.set(el.dataset.id, el));
+      for (let i = 0; i < drop.length; i++) {
+        const el = pool.get(drop[i]);
+        if (el) el.remove();
+        pool.delete(drop[i]);
+      }
 
       const frag = document.createDocumentFragment();
+      let pending = 0;
       for (let i = start; i < end; i++) {
         const song = songs[i];
         const col = i % cols;
-        const row = Math.floor(i / cols);
+        const row = (i / cols) | 0;
         const top = row * stride;
         const left = col * (cardW + GAP);
-        const pos =
-          "top:" + top + "px;left:" + left + "px;width:" + cardW + "px;height:" + cardH + "px";
-        let el = have.get(song.id);
+        let el = pool.get(song.id);
         if (!el) {
+          const pos =
+            "top:" + top + "px;left:" + left + "px;width:" + cardW + "px;height:" + cardH + "px";
           const holder = document.createElement("template");
           holder.innerHTML = songCardHtml(song, i, chart, { showRank: true, style: pos }).trim();
           el = holder.content.firstElementChild;
-        } else {
+          if (!el) continue;
+          pool.set(song.id, el);
+          frag.appendChild(el);
+          pending += 1;
+        } else if (reposition) {
           el.style.top = top + "px";
           el.style.left = left + "px";
           el.style.width = cardW + "px";
           el.style.height = cardH + "px";
         }
-        frag.appendChild(el);
       }
-      root.appendChild(frag);
+      if (pending) root.appendChild(frag);
+
+      lastStart = start;
+      lastEnd = end;
+      lastCols = cols;
+      lastCardW = cardW;
+      lastCardH = cardH;
+      lastScrollY = window.scrollY || 0;
     }
 
     function schedule() {
@@ -756,13 +835,54 @@
       });
     }
 
-    window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    function onScroll() {
+      if (!geom) {
+        schedule();
+        return;
+      }
+      const y = window.scrollY || 0;
+      if (Math.abs(y - lastScrollY) > overscanPx(geom)) {
+        if (raf) {
+          cancelAnimationFrame(raf);
+          raf = 0;
+        }
+        renderWindow();
+        return;
+      }
+      schedule();
+    }
+
+    function onResize() {
+      const width = root.clientWidth;
+      if (!geom || Math.abs(width - geom.width) >= 1) geom = null;
+      else gridTop = documentTop(root);
+      schedule();
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver((entries) => {
+            const w = entries[0] && entries[0].contentRect ? entries[0].contentRect.width : 0;
+            if (geom && Math.abs(w - geom.width) < 1) return;
+            geom = null;
+            schedule();
+          })
+        : null;
     if (ro) ro.observe(root);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        if (!root.isConnected) return;
+        const nextTop = documentTop(root);
+        if (nextTop === gridTop) return;
+        gridTop = nextTop;
+        schedule();
+      });
+    }
     virtualCleanup = () => {
-      window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
       if (ro) ro.disconnect();
       if (raf) cancelAnimationFrame(raf);
     };
