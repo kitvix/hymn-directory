@@ -137,7 +137,7 @@
         liveStatsMeta = {
           status: "ok",
           source,
-          message: source === "api" ? "YouTube 即時觀看" : "本機 live-stats.json"
+          message: source === "api" ? "YouTube 即時觀看次數" : "暫存觀看次數"
         };
         return;
       }
@@ -147,7 +147,7 @@
       liveStatsMeta = {
         status: "fallback",
         source: "seed",
-        message: "YouTube API 暫時唔用得，顯示示範／快取數字"
+        message: "暫時未能更新觀看次數，顯示暫存數字"
       };
     }
   }
@@ -250,14 +250,25 @@
   }
 
   function platformDots(song) {
-    return LINK_PLATFORMS.filter((p) => song.links && song.links[p])
-      .map((p) => platformIcon(p))
-      .join("");
+    const list = LINK_PLATFORMS.filter((p) => song.links && song.links[p]);
+    const max = 3;
+    const shown = list.slice(0, max).map((p) => platformIcon(p)).join("");
+    const more =
+      list.length > max
+        ? '<span class="p-icon p-more" aria-hidden="true">+' + (list.length - max) + "</span>"
+        : "";
+    return shown + more;
+  }
+
+  /** Display-only. Filter values stay on the data language (普通話). */
+  function displayLang(lang) {
+    if (lang === "普通話") return "國語";
+    return lang || "";
   }
 
   function langChips(langs) {
     return (langs || [])
-      .map((l) => `<span class="chip chip-brand">${esc(l)}</span>`)
+      .map((l) => `<span class="chip chip-brand">${esc(displayLang(l))}</span>`)
       .join("");
   }
 
@@ -299,7 +310,7 @@
     `;
   }
 
-  const HOME_QUERY_KEYS = ["q", "lang", "ministry", "chart", "tag"];
+  const HOME_QUERY_KEYS = ["q", "lang", "ministry", "chart", "tag", "theme"];
   const TAG_DEFS = [
     { id: "accompaniment", label: "伴奏" },
     { id: "subtitle", label: "字幕" },
@@ -544,11 +555,15 @@
   function tagChipsHtml(song, shifted) {
     const tags = orderedTags(song);
     if (!tags.length) return "";
+    const max = 2;
+    const shown = tags.slice(0, max);
+    const extra = tags.length - shown.length;
     return (
       '<div class="song-card-tags' +
       (shifted ? " has-rank" : "") +
       '">' +
-      tags.map((id) => '<span class="tag-chip">' + esc(TAG_LABEL[id]) + "</span>").join("") +
+      shown.map((id) => '<span class="tag-chip">' + esc(TAG_LABEL[id]) + "</span>").join("") +
+      (extra > 0 ? '<span class="tag-chip tag-more">+' + extra + "</span>" : "") +
       "</div>"
     );
   }
@@ -573,6 +588,9 @@
 
   let virtualCleanup = null;
   let homeGrid = null;
+  let searchTimer = null;
+  let suggestSticky = { suppress: false, active: -1 };
+  let reopenSuggest = null;
 
   function teardownVirtual() {
     if (virtualCleanup) {
@@ -590,7 +608,10 @@
     const [c1, c2] = coverColors(song);
     const grad = "linear-gradient(145deg," + esc(c1) + "," + esc(c2) + ")";
     const url = (song.coverUrl || "").trim();
-    const langs = (song.languages || []).filter(Boolean).map(esc).join("／");
+    const langs = (song.languages || [])
+      .filter(Boolean)
+      .map((l) => esc(displayLang(l)))
+      .join("／");
     const score = chart ? scoreLabel(song, chart) : "";
     const dots = platformDots(song);
     const label =
@@ -889,6 +910,277 @@
     renderWindow();
   }
 
+  function sourceLabel(source) {
+    if (source === "auto") return "官方頻道";
+    if (source === "creator") return "投稿";
+    return "多方來源";
+  }
+
+  function themeOptions() {
+    const counts = new Map();
+    publishedSongs().forEach((song) => {
+      (song.themes || []).forEach((theme) => {
+        if (!theme) return;
+        counts.set(theme, (counts.get(theme) || 0) + 1);
+      });
+    });
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-Hant"))
+      .map(([name]) => name);
+  }
+
+  function suggestionQueryReady(query) {
+    const text = normalizeText(query);
+    let cjk = 0;
+    let latin = 0;
+    for (const ch of text) {
+      if (isCjkChar(ch)) cjk += 1;
+      else if (isAlnumChar(ch)) latin += 1;
+    }
+    return cjk >= 1 || latin >= 2;
+  }
+
+  function collectSuggestions(rawQuery, pool) {
+    const query = normalizeText(rawQuery);
+    if (!suggestionQueryReady(query)) return [];
+    const items = [];
+    const seenTitle = new Map();
+    (pool || []).forEach((song) => {
+      let titleScore = 0;
+      titleCandidates(song).forEach((title) => {
+        titleScore = Math.max(titleScore, titleLevel(title, query));
+      });
+      if (titleScore > 0 && song.title) {
+        const key = normalizeText(song.title);
+        const prev = seenTitle.get(key);
+        if (!prev || youtubeViews(song) > youtubeViews(prev.song)) {
+          seenTitle.set(key, { song, score: titleScore });
+        }
+      }
+    });
+    seenTitle.forEach(({ song, score }) => {
+      items.push({
+        kind: "title",
+        label: song.title,
+        hint: song.artist || "",
+        score,
+        views: youtubeViews(song)
+      });
+    });
+    const seenArtist = new Set();
+    (pool || []).forEach((song) => {
+      if (!song.artist || seenArtist.has(song.artist)) return;
+      const score = fieldLevel(song.artist, query, "artist");
+      if (score <= 0) return;
+      seenArtist.add(song.artist);
+      items.push({ kind: "artist", label: song.artist, hint: "機構", score, views: 0 });
+    });
+    const seenTheme = new Set();
+    (pool || []).forEach((song) => {
+      (song.themes || []).forEach((theme) => {
+        if (!theme || seenTheme.has(theme)) return;
+        const score = fieldLevel(theme, query, "theme");
+        if (score <= 0) return;
+        seenTheme.add(theme);
+        items.push({ kind: "theme", label: theme, hint: "主題", score, views: 0 });
+      });
+    });
+    const kindRank = { title: 0, artist: 1, theme: 2 };
+    items.sort((a, b) => {
+      if (kindRank[a.kind] !== kindRank[b.kind]) return kindRank[a.kind] - kindRank[b.kind];
+      if (b.score !== a.score) return b.score - a.score;
+      return b.views - a.views;
+    });
+    const seen = new Set();
+    const out = [];
+    items.forEach((item) => {
+      const key = normalizeText(item.label);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(item);
+    });
+    return out.slice(0, 8);
+  }
+
+  function normalizeTitleKey(title) {
+    let text = normalizeText(title).replace(/\s+/g, "");
+    if (!text) return "";
+    let prev = "";
+    while (prev !== text) {
+      prev = text;
+      text = text.replace(/[（(【\[][^）)】\]]{0,32}[）)】\]]$/, "");
+      text = text.replace(/[-–—－_:|｜]+$/, "");
+    }
+    const stripped = text.replace(
+      /(officialmusicvideo|officialmv|lyricvideo|karaoke|offvocal|acoustic|1080p|720p|現場版|歌詞版|純音樂|伴奏版|中英字幕|字幕版|官方版|4k|hd|hq|live|mv)+$/i,
+      ""
+    );
+    if ([...stripped].length >= 2) text = stripped;
+    return text;
+  }
+
+  function titlesSimilar(a, b) {
+    const left = normalizeTitleKey(a);
+    const right = normalizeTitleKey(b);
+    if (!left || !right || left === right) return false;
+    const aa = [...left];
+    const bb = [...right];
+    const shorter = aa.length <= bb.length ? aa : bb;
+    const longer = aa.length <= bb.length ? bb : aa;
+    if (shorter.length >= 2 && longer.join("").includes(shorter.join(""))) return true;
+    let i = 0;
+    while (i < aa.length && i < bb.length && aa[i] === bb[i]) i += 1;
+    return i >= 2;
+  }
+
+  function linkCount(song) {
+    return LINK_PLATFORMS.filter((p) => song.links && song.links[p]).length;
+  }
+
+  function preferRelatedDup(current, candidate, incumbent) {
+    const rank = (item) => {
+      let score = 0;
+      if (current.artist && item.artist === current.artist) score += 100;
+      score += linkCount(item) * 10;
+      if ((item.tags || []).includes("accompaniment")) score -= 5;
+      return score;
+    };
+    const next = rank(candidate);
+    const prev = rank(incumbent);
+    if (next !== prev) return next > prev;
+    return youtubeViews(candidate) > youtubeViews(incumbent);
+  }
+
+  const GENERIC_THEMES = new Set(["敬拜", "讚美"]);
+
+  function specificSharedThemes(song, other) {
+    return (other.themes || []).filter(
+      (theme) => (song.themes || []).includes(theme) && !GENERIC_THEMES.has(theme)
+    );
+  }
+
+  function pickRelated(song) {
+    const groups = new Map();
+    publishedSongs().forEach((other) => {
+      if (!other || other.id === song.id) return;
+      const key = normalizeTitleKey(other.title) || "id:" + other.id;
+      const prev = groups.get(key);
+      if (!prev || preferRelatedDup(song, other, prev)) groups.set(key, other);
+    });
+    const similar = [];
+    const topical = [];
+    const sameArtist = [];
+    const sameLang = [];
+    groups.forEach((other) => {
+      const artistMatch = !!(song.artist && other.artist === song.artist);
+      const themeMatch = specificSharedThemes(song, other).length > 0;
+      const langMatch = (other.languages || []).some((lang) =>
+        (song.languages || []).includes(lang)
+      );
+      if (artistMatch && titlesSimilar(song.title, other.title)) similar.push(other);
+      else if (themeMatch) topical.push(other);
+      else if (artistMatch) sameArtist.push(other);
+      else if (langMatch) sameLang.push(other);
+    });
+    const byHeat = (a, b) => {
+      const aArtist = song.artist && a.artist === song.artist ? 1 : 0;
+      const bArtist = song.artist && b.artist === song.artist ? 1 : 0;
+      if (aArtist !== bArtist) return bArtist - aArtist;
+      const aSpec = specificSharedThemes(song, a).length;
+      const bSpec = specificSharedThemes(song, b).length;
+      if (aSpec !== bSpec) return bSpec - aSpec;
+      return youtubeViews(b) - youtubeViews(a);
+    };
+    [similar, topical, sameArtist, sameLang].forEach((list) => list.sort(byHeat));
+    const out = [];
+    similar.forEach((item) => {
+      if (out.length < 8) out.push(item);
+    });
+    let otherTopical = 0;
+    topical.forEach((item) => {
+      if (out.length >= 8) return;
+      const artistMatch = !!(song.artist && item.artist === song.artist);
+      if (!artistMatch) {
+        if (otherTopical >= 4) return;
+        otherTopical += 1;
+      }
+      out.push(item);
+    });
+    sameArtist.forEach((item) => {
+      if (out.length < 8) out.push(item);
+    });
+    const langCap = out.length >= 6 ? 8 - out.length : Math.min(4, 8 - out.length);
+    for (let i = 0; i < sameLang.length && i < langCap && out.length < 8; i++) out.push(sameLang[i]);
+    return out;
+  }
+
+  function themeHomeHref(theme) {
+    const params = preservedHomeQuery();
+    params.delete("q");
+    if (theme) params.set("theme", theme);
+    else params.delete("theme");
+    return withQuery("#/", params);
+  }
+
+  function songShareUrl(id) {
+    return location.origin + location.pathname + "#/song/" + encodeURIComponent(id);
+  }
+
+  function formatSongTitle(song) {
+    const raw = String((song && song.title) || "").trim() || "詩歌";
+    const chars = [...raw];
+    const head = chars.length > 42 ? chars.slice(0, 42).join("") + "…" : raw;
+    return head + " — 詩歌目錄";
+  }
+
+  function listenBtnHtml(song, platform) {
+    const meta = window.PLATFORM_META[platform];
+    if (!meta || !(song.links && song.links[platform])) return "";
+    const iconName =
+      platform === "apple_music" ? "apple" : platform === "youtube_music" ? "youtube" : platform;
+    return `
+      <a class="listen-btn" href="${esc(song.links[platform])}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${platform}">
+        <span class="logo ${meta.className}">${iconSvg(iconName)}</span>
+        <span>於 ${esc(meta.label)} 收聽</span>
+      </a>`;
+  }
+
+  function fallbackCopy(text) {
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.left = "-9999px";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      area.remove();
+      if (ok) return true;
+    } catch (_) {}
+    window.prompt("請手動複製連結", text);
+    return false;
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(
+        () => true,
+        () => fallbackCopy(text)
+      );
+    }
+    return Promise.resolve(fallbackCopy(text));
+  }
+
+  function flashCopy(btn, ok) {
+    if (!btn) return;
+    const prev = btn.textContent;
+    btn.textContent = ok ? "已複製連結" : "請手動複製";
+    window.setTimeout(() => {
+      if (btn.isConnected) btn.textContent = prev;
+    }, 1600);
+  }
+
   function renderHome() {
     const hash = location.hash;
     const qIdx = hash.indexOf("?");
@@ -898,12 +1190,16 @@
     const lang = qs.get("lang") || "";
     const ministry = qs.get("ministry") || "";
     const tag = qs.get("tag") || "";
+    const theme = qs.get("theme") || "";
+    const searching = !!q;
 
     let list = publishedSongs().filter((s) => onYoutubeChart(s, chart));
-    if (q) list = list.filter((s) => relevanceScore(s, q) > 0);
     if (lang) list = list.filter((s) => (s.languages || []).includes(lang));
     if (ministry) list = list.filter((s) => s.artist === ministry);
     if (tag) list = list.filter((s) => (s.tags || []).includes(tag));
+    if (theme) list = list.filter((s) => (s.themes || []).includes(theme));
+    const suggestPool = list.slice();
+    if (q) list = list.filter((s) => relevanceScore(s, q) > 0);
 
     list = sortSongs(list, chart, q);
     const ministryOrder = ["讚美之泉", "讚美之泉兒童", "約書亞樂團", "基恩敬拜", "小羊詩歌", "HKACM", "敬拜者使團"];
@@ -912,8 +1208,9 @@
       ...ministryOrder.filter((m) => ministrySet.has(m)),
       ...[...ministrySet].filter((m) => !ministryOrder.includes(m)).sort()
     ];
-    const featured = list[0] || null;
-    homeGrid = { songs: list, chart };
+    const themes = themeOptions();
+    const featured = !searching ? list[0] || null : null;
+    homeGrid = { songs: list, chart, suggestPool };
 
     const tabs = ["新歌", "最熱"]
       .map(
@@ -922,20 +1219,26 @@
       )
       .join("");
 
-    const liveNote =
-      liveStatsMeta.status === "ok"
-        ? `<span class="muted" style="font-size:13px">${list.length} 首 · ${esc(liveStatsMeta.message || "YouTube")}</span>`
-        : liveStatsMeta.status === "fallback"
-          ? `<span class="muted" style="font-size:13px">${list.length} 首 · ${esc(liveStatsMeta.message)}</span>`
-          : `<span class="muted" style="font-size:13px">${list.length} 首</span>`;
+    const liveSuffix =
+      liveStatsMeta.status === "ok" || liveStatsMeta.status === "fallback"
+        ? liveStatsMeta.message
+          ? " · " + liveStatsMeta.message
+          : ""
+        : "";
+    const countLabel = searching
+      ? "按相關度 · 共 " + list.length + " 首" + liveSuffix
+      : list.length + " 首" + liveSuffix;
+    const liveNote = `<span class="muted section-count" style="font-size:13px">${esc(countLabel)}</span>`;
 
     const featureHtml = featured
       ? (() => {
           const listen = preferListen(featured);
           const [c1, c2] = coverColors(featured);
           const cover = (featured.coverUrl || "").trim();
-          const blurb = visibleBlurb(featured.blurb);
-          const kicker = q ? "按相關度" : chart + " · 第 1 名";
+          const kicker = chart + " · 第 1 名";
+          const action = listen
+            ? `<a class="btn btn-play" href="${esc(listen.url)}" target="_blank" rel="noopener noreferrer" data-feature-out="${esc(featured.id)}">${iconSvg("play")} 於 ${esc(window.PLATFORM_META[listen.platform].label)} 收聽</a>`
+            : `<a class="btn btn-glass" href="${esc(songHref(featured.id))}">查看詳情</a>`;
           return `
           <section class="poster hero-feature" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)}">
             <div class="hero-visual">
@@ -950,26 +1253,14 @@
             <div class="hero-content">
               <p class="hero-kicker"><span class="glass-pill">${esc(kicker)}</span></p>
               <h1><a href="${esc(songHref(featured.id))}">${esc(featured.title)}</a></h1>
-              <div class="hero-meta-row">
-                <span class="chip">${esc(featured.artist)}</span>
-                ${langChips(featured.languages)}
-                ${tagChipSpans(featured)}
-              </div>
-              ${blurb ? `<p class="sub">${esc(blurb)}</p>` : ""}
-              <div class="hero-actions">
-                ${
-                  listen
-                    ? `<a class="btn btn-play" href="${esc(listen.url)}" target="_blank" rel="noopener noreferrer" data-feature-out="${esc(featured.id)}">${iconSvg("play")} 喺 ${esc(window.PLATFORM_META[listen.platform].label)} 聽</a>`
-                    : ""
-                }
-                <a class="btn btn-glass" href="#/song/${esc(featured.id)}">睇詳情</a>
-              </div>
+              <p class="hero-artist">${esc(featured.artist || "")}</p>
+              <div class="hero-actions">${action}</div>
             </div>
           </section>`;
         })()
       : "";
 
-    const heading = q ? "按相關度" : chart;
+    const heading = searching ? "搜尋結果" : chart;
     const grid = list.length
       ? `<div class="chart-grid" id="chart-grid" role="list" aria-label="${esc(heading)}"></div>`
       : `<div class="empty"><p>沒有符合條件的詩歌。</p><button type="button" class="btn btn-primary" id="clear-all-filters">清除全部條件</button></div>`;
@@ -980,7 +1271,10 @@
 
       <div class="section-head">
         <h2>${esc(heading)}</h2>
-        ${liveNote}
+        <div class="section-tools">
+          ${liveNote}
+          <button type="button" class="btn btn-sm btn-ghost" id="copy-home-link">複製連結</button>
+        </div>
       </div>
 
       <div class="toolbar">
@@ -988,7 +1282,8 @@
         <div class="toolbar-row">
           <div class="search-box">
             <span class="icon">${iconSvg("search")}</span>
-            <input id="search-input" type="search" placeholder="搜歌名、事工、主題…" value="${esc(q)}" />
+            <input id="search-input" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggest" placeholder="搜尋歌名、機構、主題…" value="${esc(q)}" autocomplete="off" />
+            <ul id="search-suggest" class="search-suggest" role="listbox" hidden></ul>
           </div>
         </div>
         <div class="filter-menus" aria-label="篩選">
@@ -1000,7 +1295,7 @@
                 .sort()
                 .map(
                   (l) =>
-                    `<button type="button" class="filter-chip ${lang === l ? "active" : ""}" data-filter="lang" data-value="${esc(l)}" role="listitem">${esc(l)}</button>`
+                    `<button type="button" class="filter-chip ${lang === l ? "active" : ""}" data-filter="lang" data-value="${esc(l)}" role="listitem">${esc(displayLang(l))}</button>`
                 )
                 .join("")}
             </div>
@@ -1027,6 +1322,18 @@
               ).join("")}
             </div>
           </div>
+          <div class="filter-group">
+            <span class="filter-label">主題</span>
+            <div class="chip-bar" id="filter-theme-bar" role="list">
+              <button type="button" class="filter-chip ${!theme ? "active" : ""}" data-filter="theme" data-value="" role="listitem">全部</button>
+              ${themes
+                .map(
+                  (item) =>
+                    `<button type="button" class="filter-chip ${theme === item ? "active" : ""}" data-filter="theme" data-value="${esc(item)}" role="listitem">${esc(item)}</button>`
+                )
+                .join("")}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1051,37 +1358,59 @@
     const [c1, c2] = coverColors(song);
     const cover = (song.coverUrl || "").trim();
     const primary = preferListen(song);
-    const listenBtns = LINK_PLATFORMS.filter((p) => song.links && song.links[p])
-      .map((p) => {
-        const m = window.PLATFORM_META[p];
-        if (!m) return "";
-        const url = song.links[p];
-        const iconName = p === "apple_music" ? "apple" : p === "youtube_music" ? "youtube" : p;
-        return `
-          <a class="listen-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${p}">
-            <span class="logo ${m.className}">${iconSvg(iconName)}</span>
-            <span>喺 ${esc(m.label)} 聽</span>
-          </a>`;
-      })
-      .join("");
-
-    const relatedPool = publishedSongs().filter(
-      (s) =>
-        s.id !== song.id &&
-        (s.artist === song.artist ||
-          (s.languages || []).some((l) => (song.languages || []).includes(l)))
+    const otherPlatforms = LINK_PLATFORMS.filter(
+      (p) => song.links && song.links[p] && (!primary || p !== primary.platform)
     );
-    const related = relatedPool
-      .filter((s) => s.artist === song.artist)
-      .concat(relatedPool.filter((s) => s.artist !== song.artist))
-      .slice(0, 8);
+    const hasAnyLink = LINK_PLATFORMS.some((p) => song.links && song.links[p]);
+    const listenBtns = otherPlatforms.map((p) => listenBtnHtml(song, p)).join("");
+    const blurb = visibleBlurb(song.blurb);
+    const related = pickRelated(song);
 
     const voteUseful = (state.votes[song.id] || {}).useful || 0;
     const voteBad = (state.votes[song.id] || {}).bad || 0;
 
+    const themeChips = (song.themes || [])
+      .map(
+        (item) =>
+          `<a class="chip" href="${esc(themeHomeHref(item))}">${esc(item)}</a>`
+      )
+      .join("");
+    const voteRow = `
+        <div class="vote-row">
+          <button class="btn btn-sm" id="vote-useful" type="button">連結正確（${voteUseful}）</button>
+          <button class="btn btn-sm" id="vote-bad" type="button">連結錯誤（${voteBad}）</button>
+        </div>`;
+    let listenPanel = "";
+    if (!hasAnyLink) {
+      listenPanel = `
+      <section class="panel glass-panel">
+        <h2>收聽連結</h2>
+        ${blurb ? `<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(blurb)}</p>` : ""}
+        <div class="listen-row"><div class="alert alert-warn">暫時未有平台連結。</div></div>
+        ${voteRow}
+      </section>`;
+    } else if (listenBtns) {
+      listenPanel = `
+      <section class="panel glass-panel">
+        <h2>其他收聽方式</h2>
+        ${blurb ? `<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(blurb)}</p>` : ""}
+        <div class="listen-row">${listenBtns}</div>
+        ${voteRow}
+      </section>`;
+    } else {
+      listenPanel = `
+      <section class="panel glass-panel">
+        ${blurb ? `<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(blurb)}</p>` : ""}
+        ${voteRow}
+      </section>`;
+    }
+
     return shell(
       `
-      <a class="back-link" href="${esc(directoryHref())}">${iconSvg("back")} 返回目錄</a>
+      <div class="detail-toolbar">
+        <a class="back-link" href="${esc(directoryHref())}">${iconSvg("back")} 返回目錄</a>
+        <button type="button" class="btn btn-sm btn-ghost" id="copy-song-link">複製連結</button>
+      </div>
       <section class="poster detail-poster" style="--hero-a:${esc(c1)};--hero-b:${esc(c2)};--hero-glow:${esc(c1)}55">
         <div class="hero-visual">
           ${
@@ -1092,30 +1421,18 @@
         </div>
         <div class="hero-scrim" aria-hidden="true"></div>
         <div class="hero-content">
-          <div class="hero-meta-row">${langChips(song.languages)} ${tagChipSpans(song)} ${(song.themes || [])
-            .map((t) => `<span class="chip">${esc(t)}</span>`)
-            .join("")}</div>
+          <div class="hero-meta-row">${langChips(song.languages)} ${tagChipSpans(song)} ${themeChips}</div>
           <h1>${esc(song.title)}</h1>
-          <p class="sub"><strong>${esc(song.artist)}</strong> · 來源：${esc(
-            song.source === "auto" ? "自動收錄" : song.source === "creator" ? "創作者上架" : "混合"
-          )}</p>
+          <p class="sub"><strong>${esc(song.artist)}</strong> · 來源：${esc(sourceLabel(song.source))}</p>
           ${
             primary
-              ? `<div class="hero-actions"><a class="btn btn-play" href="${esc(primary.url)}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${esc(primary.platform)}">${iconSvg("play")} 喺 ${esc(window.PLATFORM_META[primary.platform].label)} 聽</a></div>`
+              ? `<div class="hero-actions"><a class="btn btn-play" href="${esc(primary.url)}" target="_blank" rel="noopener noreferrer" data-click="${esc(song.id)}" data-platform="${esc(primary.platform)}">${iconSvg("play")} 於 ${esc(window.PLATFORM_META[primary.platform].label)} 收聽</a></div>`
               : ""
           }
         </div>
       </section>
 
-      <section class="panel glass-panel">
-        <h2>收聽連結</h2>
-        ${visibleBlurb(song.blurb) ? `<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(visibleBlurb(song.blurb))}</p>` : ""}
-        <div class="listen-row">${listenBtns || `<div class="alert alert-warn">暫時未有平台連結。</div>`}</div>
-        <div class="vote-row">
-          <button class="btn btn-sm" id="vote-useful">有用（${voteUseful}）</button>
-          <button class="btn btn-sm" id="vote-bad">連結唔啱（${voteBad}）</button>
-        </div>
-      </section>
+      ${listenPanel}
 
       <section class="panel">
         <h2>YouTube 觀看</h2>
@@ -1131,7 +1448,7 @@
               liveStatsMeta.status === "ok"
                 ? liveStatsMeta.message
                 : liveStatsMeta.status === "fallback"
-                  ? "示範／快取"
+                  ? "暫存"
                   : "";
             return `<div class="prop prop-stack"><span class="k">觀看次數</span><span class="v mono">${esc(formatPlays(views))}${src ? ` · ${esc(src)}` : ""}</span></div>
             <div class="prop"><span class="k">上傳日</span><span class="v mono">${esc(pub ? new Date(pub).toLocaleDateString("zh-HK") : "—")}</span></div>`;
@@ -1254,29 +1571,174 @@
     location.hash = "#/" + (qstr ? "?" + qstr : "");
   }
 
+  function currentHomeQuery() {
+    const hash = location.hash || "";
+    const i = hash.indexOf("?");
+    const qs = i >= 0 ? new URLSearchParams(hash.slice(i + 1)) : new URLSearchParams();
+    return (qs.get("q") || "").trim();
+  }
+
+  function bindSuggest(input, pool) {
+    const list = document.getElementById("search-suggest");
+    reopenSuggest = null;
+    if (!input || !list) return;
+    let items = [];
+    let active = suggestSticky.suppress ? -1 : suggestSticky.active;
+
+    function close() {
+      items = [];
+      active = -1;
+      suggestSticky.active = -1;
+      list.hidden = true;
+      list.innerHTML = "";
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+    }
+
+    function paint() {
+      const query = input.value.trim();
+      if (suggestSticky.suppress || !suggestionQueryReady(query)) {
+        close();
+        return;
+      }
+      items = collectSuggestions(query, pool);
+      if (!items.length) {
+        close();
+        return;
+      }
+      if (active >= items.length) active = items.length - 1;
+      list.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      list.innerHTML = items
+        .map((item, i) => {
+          const selected = i === active;
+          return (
+            '<li role="option" id="suggest-opt-' +
+            i +
+            '" class="suggest-opt' +
+            (selected ? " is-active" : "") +
+            '" aria-selected="' +
+            (selected ? "true" : "false") +
+            '" data-label="' +
+            esc(item.label) +
+            '"><span class="suggest-label">' +
+            esc(item.label) +
+            "</span>" +
+            (item.hint ? '<span class="suggest-hint">' + esc(item.hint) + "</span>" : "") +
+            "</li>"
+          );
+        })
+        .join("");
+      if (active >= 0) input.setAttribute("aria-activedescendant", "suggest-opt-" + active);
+      else input.removeAttribute("aria-activedescendant");
+      suggestSticky.active = active;
+    }
+
+    function apply(label) {
+      clearTimeout(searchTimer);
+      suggestSticky.suppress = true;
+      suggestSticky.active = -1;
+      if (currentHomeQuery() === label) {
+        input.value = label;
+        close();
+        return;
+      }
+      setHomeQuery({ q: label });
+    }
+
+    input.addEventListener("input", () => {
+      suggestSticky.suppress = false;
+      active = -1;
+      paint();
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === "Escape") {
+        if (!list.hidden) {
+          e.preventDefault();
+          suggestSticky.suppress = true;
+          close();
+        }
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        suggestSticky.suppress = false;
+        if (!items.length || list.hidden) paint();
+        if (!items.length) return;
+        e.preventDefault();
+        const dir = e.key === "ArrowDown" ? 1 : -1;
+        if (active < 0) active = dir > 0 ? 0 : items.length - 1;
+        else active = (active + dir + items.length) % items.length;
+        paint();
+        const el = document.getElementById("suggest-opt-" + active);
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+        return;
+      }
+      if (e.key === "Enter" && active >= 0 && items[active]) {
+        e.preventDefault();
+        apply(items[active].label);
+      }
+    });
+    list.addEventListener("mousedown", (e) => {
+      if (e.target.closest("[data-label]")) e.preventDefault();
+    });
+    list.addEventListener("click", (e) => {
+      const opt = e.target.closest("[data-label]");
+      if (!opt) return;
+      apply(opt.getAttribute("data-label") || "");
+    });
+    input.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (!input.isConnected) return;
+        if (document.activeElement === input) return;
+        close();
+      }, 150);
+    });
+    input.addEventListener("focus", () => {
+      if (suggestSticky.suppress) return;
+      paint();
+    });
+    reopenSuggest = () => {
+      if (!input.isConnected || suggestSticky.suppress) return;
+      paint();
+    };
+  }
+
   function bindHome() {
     document.querySelectorAll("#chart-tabs .tab").forEach((btn) => {
       btn.addEventListener("click", () => setHomeQuery({ chart: btn.dataset.chart, platform: null }));
     });
     const search = document.getElementById("search-input");
-    let t;
     if (search) {
       search.addEventListener("input", () => {
-        clearTimeout(t);
-        t = setTimeout(() => setHomeQuery({ q: search.value.trim() }), 220);
+        clearTimeout(searchTimer);
+        const value = search.value.trim();
+        searchTimer = setTimeout(() => {
+          if (!search.isConnected) return;
+          setHomeQuery({ q: value });
+        }, 220);
       });
+      bindSuggest(search, (homeGrid && homeGrid.suggestPool) || []);
     }
     document.querySelectorAll(".filter-chip[data-filter]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const key = btn.dataset.filter;
         const val = btn.dataset.value || "";
-        if (key === "lang" || key === "ministry" || key === "tag") setHomeQuery({ [key]: val });
+        if (key === "lang" || key === "ministry" || key === "tag" || key === "theme") {
+          setHomeQuery({ [key]: val });
+        }
       });
     });
     const clearFilters = document.getElementById("clear-all-filters");
     if (clearFilters) {
       clearFilters.addEventListener("click", () => {
-        setHomeQuery({ q: "", lang: "", ministry: "", tag: "" });
+        setHomeQuery({ q: "", lang: "", ministry: "", tag: "", theme: "" });
+      });
+    }
+    const copyHome = document.getElementById("copy-home-link");
+    if (copyHome) {
+      copyHome.addEventListener("click", () => {
+        copyText(location.href).then((ok) => flashCopy(copyHome, ok));
       });
     }
     if (homeGrid && document.getElementById("chart-grid")) {
@@ -1307,6 +1769,12 @@
         state.votes[id].bad += 1;
         saveState(state);
         render();
+      });
+    }
+    const copySong = document.getElementById("copy-song-link");
+    if (copySong) {
+      copySong.addEventListener("click", () => {
+        copyText(songShareUrl(id)).then((ok) => flashCopy(copySong, ok));
       });
     }
   }
@@ -1388,20 +1856,20 @@
       app.innerHTML = renderAdmin();
       bindAdmin();
     }
-    document.title =
-      r.name === "submit"
-        ? "上架暫停 — 詩歌目錄"
-        : r.name === "admin"
-          ? "管理 — 詩歌目錄"
-          : r.name === "song"
-            ? "詩歌詳情 — 詩歌目錄"
-            : "詩歌目錄 — 華語基督教詩歌";
+    if (r.name === "submit") document.title = "上架暫停 — 詩歌目錄";
+    else if (r.name === "admin") document.title = "管理 — 詩歌目錄";
+    else if (r.name === "song") {
+      const song = getSong(r.id);
+      document.title =
+        song && song.status === "published" ? formatSongTitle(song) : "詩歌詳情 — 詩歌目錄";
+    } else document.title = "詩歌目錄 — 華語基督教詩歌";
     if (restoreSearch) {
       const input = document.getElementById("search-input");
       if (input) {
         input.focus();
         const pos = caret == null ? input.value.length : caret;
         try { input.setSelectionRange(pos, pos); } catch (_) {}
+        if (reopenSuggest) reopenSuggest();
       }
     }
   }
