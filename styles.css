@@ -383,6 +383,35 @@ img { max-width: 100%; display: block; }
 }
 .chip-brand { background: var(--brand-soft); color: var(--brand); border-color: transparent; }
 .chip-accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.chip-tag { font-weight: 700; }
+.song-card-tags {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 54px;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  pointer-events: none;
+}
+.song-card-tags.has-rank { left: 46px; }
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #fff;
+  background: rgba(8, 8, 12, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.empty p { margin: 0 0 16px; }
 
 .filter-menus {
   display: grid;

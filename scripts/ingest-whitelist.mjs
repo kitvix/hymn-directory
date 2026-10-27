@@ -119,6 +119,34 @@ function guessThemes(title) {
   return themes.slice(0, 3);
 }
 
+function isMultiTitle(title) {
+  const parts = String(title || "")
+    .replace(/\d\s*[/／]\s*\d/g, " ")
+    .split(/[/／]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return false;
+  const cjkParts = parts.filter(
+    (part) => (part.match(/[\u3400-\u9fff\uf900-\ufaff]/g) || []).length >= 2
+  );
+  return cjkParts.length >= 2;
+}
+
+/** Keep 伴奏／字幕／Shorts／串燒 in the catalogue; tag them instead of dropping. */
+function inferTags(title, meta) {
+  const rawTitle = String(title || "");
+  const extra = (meta && (meta.description || meta.originalTitle || "")) || "";
+  const text = rawTitle + "\n" + String(extra);
+  const tags = [];
+  if (/(?<!無)伴奏|伴唱|karaoke|卡拉\s*ok|off\s*vocal|純音樂/i.test(text)) {
+    tags.push("accompaniment");
+  }
+  if (/中英字幕|字幕|lyric\s*video|歌詞版/i.test(text)) tags.push("subtitle");
+  if (/#\s*shorts|(?:^|[^a-z0-9])shorts(?:[^a-z0-9]|$)/i.test(text)) tags.push("shorts");
+  if (/串燒|medley/i.test(text) || isMultiTitle(rawTitle)) tags.push("medley");
+  return tags;
+}
+
 function extractYtId(url) {
   if (!url) return "";
   const m = String(url).match(
@@ -305,6 +333,7 @@ function formatSongJs(song, isLast) {
     artist: ${JSON.stringify(song.artist)},
     languages: ${JSON.stringify(song.languages)},
     themes: ${JSON.stringify(song.themes)},
+    tags: ${JSON.stringify(song.tags || [])},
     coverColor: ${JSON.stringify(song.coverColor)},
     coverUrl: ${JSON.stringify(song.coverUrl)},
     links: {
@@ -481,6 +510,7 @@ for (const ch of whitelist.channels) {
         artist: ch.ministry,
         languages: ch.languages.slice(),
         themes: guessThemes(title),
+        tags: inferTags(title, meta),
         coverColor: COVER_PALETTE[colorIdx++ % COVER_PALETTE.length],
         coverUrl: thumb,
         links,
